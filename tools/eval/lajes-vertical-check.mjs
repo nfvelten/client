@@ -12,8 +12,10 @@
    Esta régua classifica as MESMAS rotas que a CTF2 enumera (limiar e enumerador
    compartilhados em rotas-separadas.mjs — lição 2) e cobra o resto do pedido:
 
-     LV1  cada par spawn↔bandeira tem ao menos uma rota TÉRREA  (≥ 40% do comprimento no chão);
-     LV2  cada par spawn↔bandeira tem ao menos uma rota SUPERIOR (≥ 60% do comprimento em laje);
+     LV1  ir POR BAIXO é opção viável, não castigo: para cada par spawn↔bandeira distante, a
+          melhor rota que passa PELA PRAÇA gasta ≥ 40% do caminho no térreo e não é mais de
+          1,6× mais longa que a melhor rota do mapa;
+     LV2  ir POR CIMA continua sendo opção: a melhor rota do par corre ≥ 60% em laje;
      LV3  existe PRAÇA no térreo, no meio do mapa: sala livre contígua de ≥ 90 m² com largura
           útil ≥ 7 m nos dois eixos, centro a ≤ 9 m do meio do mapa;
      LV4  a praça tem COVER e não é corredor morto: ≥ 6 peças de cobertura (0,4–2,2 m de
@@ -29,12 +31,13 @@
    leitura na captura 3:2, não só neste número.
 
    Mutantes:
-     so-por-cima   sela as descidas de spawn com um colisor  → LV1 vermelha
+     so-por-cima   religa o pé de cada escada só nos próprios degraus (o defeito original)
+                   → LV1 vermelha
      praca-cheia   enche a praça de colisores                → LV3/LV4 vermelhas
-     laje-cega     ergue platibanda de 2,4 m na borda das lajes → LV5 vermelha
+     laje-cega     ergue platibanda cega de 2,4 m na borda das lajes do miolo → LV5 vermelha
 */
 import { THREE, bootGame, initTextures } from './harness.mjs';
-import { rotasSeparadas } from './rotas-separadas.mjs';
+import { rotasSeparadas, caminhoBloqueado, RAIO_PONTA } from './rotas-separadas.mjs';
 
 const mutante = process.argv.find((a) => a.startsWith('--mutante='))?.split('=')[1] || '';
 const conhecidos = new Set(['', 'so-por-cima', 'praca-cheia', 'laje-cega']);
@@ -46,72 +49,129 @@ const W = game.world;
 const Y_TERREO = 1.6;           // abaixo disso o nó é térreo (a laje do lajes está a 5,2 m)
 const FRAC_TERREA = 0.40;       // rota TÉRREA: ≥ 40% do comprimento no chão
 const FRAC_SUPERIOR = 0.60;     // rota SUPERIOR: ≥ 60% do comprimento em laje
+/* O QUE SE COMPARA, e por quê não é a rota de cima mais curta. A rota de cima mais curta é
+   quase a reta entre spawn e bandeira (53,5 m para 49 m de distância no par E→P): as lajes
+   formam um tabuleiro contínuo. Ir por baixo carrega dois custos que o projeto do mapa impõe
+   e que nenhum conserto tira: as duas escadas em U custam 22,6 m fixos de caminhada (medido
+   na geometria da addStaircase — 2 lances de 4,2 m + 2 patamares de 1,45 m, por escada) e a
+   espinha inferior é SINUOSA de propósito (LAJES_LOOPS.beco, "espinha sinuosa inferior";
+   medido 62 m de beco para 46 m de reta entre os pés das escadas, 1,35×). Sobre a rota de
+   cima mais curta isso já dá ~1,87× antes de qualquer desperdício — cobrar 1,6× seria cobrar
+   que o térreo deixasse de ser o térreo deste mapa.
+   O que o dono pediu é que o time possa ir "tanto por baixo quanto por cima". O par honesto
+   disso é o FLANCO: a segunda rota separada que a CTF2 já conta como alternativa jogável por
+   cima (100,4 m no E→P, 1,88× a direta). Se atravessar por baixo custa o mesmo que flanquear
+   por cima, ir por baixo é escolha e não castigo — e é isso que a LV1 mede.
+   Só vale para par que ATRAVESSA o mapa (spawn e bandeira em lados opostos de z = 0). É o
+   "onde fizer sentido" do pedido: para esses a praça está NO CAMINHO, então descer não é
+   detour, é escolha. Cobrar rota de praça de par do mesmo lado (spawn E e bandeira a 13,5 m,
+   ambos ao norte) seria exigir descer 5 m e subir 5 m para andar 13 — castigo, não rota. */
+const FATOR_DETOUR = 1.5;   // rota de baixo ≤ 1,5 × a rota de FLANCO por cima
+void RAIO_PONTA;
+/* 90 m²: a praça é a MAIOR sala do mapa por construção — a maior laje é a CN do spawn
+   (x −4,6..4,6 × z −36..−28,5 = 9,2 × 7,5 = 69 m², map_lajes_authored.js:38). Uma praça que
+   não passa da maior laje não é o "encontro por baixo" que o dono pediu, é mais um pátio. */
 const PRACA_AREA = 90;          // m² mínimos da sala livre do meio
 const PRACA_LARG = 7.0;         // m de largura útil mínima nos dois eixos
+/* Raio do disco que define "sala" e não "corredor". O beco mais largo do mapa tem 1,76 m
+   (addAlleySegment, width 1,76/1,62), meia-largura 0,88 — nenhuma célula de beco cabe num
+   disco de 1,20 m, com folga. Acima disso (1,9 m) a régua passava a reprovar praça MOBILIADA,
+   que é o que ela deveria premiar: dois bancos a 2,5 m um do outro quebravam a sala inteira. */
+const R_SALA = 1.20;
 const PRACA_RAIO = 9.0;         // m: distância máxima do centro da praça ao meio do mapa
 const PRACA_COVER = 6;          // peças de cobertura mínimas dentro da praça
 const COVER_ESPAC = 7.0;        // m — mesmo teto da QUAD_ESPAC do map-check (mesma conta)
 const VISADA_MIN = 0.55;        // fração mínima de amostras do miolo visíveis das bordas
 
 if (mutante === 'so-por-cima') {
-  /* Sela a faixa das descidas de spawn nas duas pontas: quem nasce em laje não chega ao chão
-     senão atravessando o mapa inteiro por cima. É o estado que o dono reprovou. */
-  const antes = W.waypoints.nodes.length;
-  const dentro = (n) => Math.abs(n.x) < 3.2 && (Math.abs(n.z + 26) < 3.4 || Math.abs(n.z - 26) < 3.4);
+  /* Recria EXATAMENTE o defeito que esta rodada consertou: o pé de cada escada ligado só aos
+     próprios degraus, nunca ao grafo do térreo (map_lajes_authored.js linkava o nó mais
+     próximo com y < 1 e achava o primeiro degrau da própria escada, a 0,28 m). O chão vira um
+     componente separado do telhado e não existe travessia por baixo — o mapa que o dono
+     reprovou. Se a LV1 não ficar vermelha aqui, ela não mede o que diz medir. */
+  /* Corta TODA aresta que sobe do chão puro (y ≈ 0) para qualquer nó elevado. Duas versões
+     anteriores sobreviveram por serem tímidas demais: cortar só o nó-pé poupava o ramal novo
+     do beco (a 0,4 m dele), e cortar só vizinho distante poupava os DEGRAUS baixos, em que a
+     malha de térreo encosta de lado. Mutante que não aplica parece mutante que passou. */
   let cortados = 0;
-  for (let i = 0; i < W.waypoints.nodes.length; i++) {
-    if (!dentro(W.waypoints.nodes[i])) continue;
-    for (const m of W.waypoints.adj[i]) {
-      const j = W.waypoints.adj[m].indexOf(i);
-      if (j >= 0) W.waypoints.adj[m].splice(j, 1);
+  for (let a = 0; a < W.waypoints.nodes.length; a++) {
+    if (W.waypoints.nodes[a].y >= .06) continue;
+    for (const b of [...W.waypoints.adj[a]]) {
+      if (W.waypoints.nodes[b].y < .06) continue;
+      W.waypoints.adj[a] = W.waypoints.adj[a].filter((i) => i !== b);
+      W.waypoints.adj[b] = W.waypoints.adj[b].filter((i) => i !== a);
+      cortados++;
     }
-    W.waypoints.adj[i] = []; cortados++;
   }
-  if (!cortados) throw new Error('MUTANTE NÃO APLICOU: nenhuma descida de spawn no grafo — o defeito já está posto');
-  void antes;
+  if (!cortados) throw new Error('MUTANTE NÃO APLICOU: o térreo já não sobe — o defeito já está posto');
 }
 if (mutante === 'praca-cheia') {
-  for (let x = -6; x <= 6; x += 1.2) for (let z = -6; z <= 5; z += 1.2)
+  for (let x = -7; x <= 7; x += 1.2) for (let z = -8; z <= 9; z += 1.2)
     W.colliders.push({ minX: x - .55, maxX: x + .55, minY: 0, maxY: 3, minZ: z - .55, maxZ: z + .55 });
 }
 if (mutante === 'laje-cega') {
+  /* Platibanda cega de 2,4 m na borda das lajes que olham o miolo (x = ∓7,4): é o "andar de
+     cima travado com parede cega" que o critério 3 proíbe. */
   const antes = W.colliders.length;
-  for (const roof of W.levels || []) {
-    for (const [x0, x1, z0, z1] of [[roof.x0, roof.x1, roof.z0, roof.z0 + .2], [roof.x0, roof.x1, roof.z1 - .2, roof.z1],
-      [roof.x0, roof.x0 + .2, roof.z0, roof.z1], [roof.x1 - .2, roof.x1, roof.z0, roof.z1]])
-      W.colliders.push({ minX: x0, maxX: x1, minY: 5.2, maxY: 7.6, minZ: z0, maxZ: z1 });
-  }
-  if (W.colliders.length <= antes) throw new Error('MUTANTE NÃO APLICOU: nenhuma laje declarada em levels');
+  for (const side of [-1, 1])
+    W.colliders.push({ minX: side * 7.3 - .15, maxX: side * 7.3 + .15, minY: 5.2, maxY: 7.6,
+      minZ: -16, maxZ: 14 });
+  if (W.colliders.length <= antes) throw new Error('MUTANTE NÃO APLICOU');
 }
 
-/* ===================== LV1 / LV2 — altura das rotas ===================== */
+/* ===================== LV1 / LV2 — cima × baixo ===================== */
 const nodes = W.waypoints.nodes, adj = W.waypoints.adj;
-const pares = [], semTerrea = [], semSuperior = [];
+const SEM_BLOQUEIO = new Uint8Array(nodes.length);
+const comprimento = (cam) => {
+  let total = 0;
+  for (let i = 1; i < cam.length; i++) total += Math.hypot(nodes[cam[i]].x - nodes[cam[i - 1]].x, nodes[cam[i]].z - nodes[cam[i - 1]].z);
+  return total;
+};
+const fracTerreo = (cam) => {
+  let total = 0, terreo = 0;
+  for (let i = 1; i < cam.length; i++) {
+    const A = nodes[cam[i - 1]], B = nodes[cam[i]];
+    const seg = Math.hypot(B.x - A.x, B.z - A.z);
+    total += seg;
+    if ((A.y + B.y) / 2 < Y_TERREO) terreo += seg;
+  }
+  return total ? terreo / total : 0;
+};
+/* ROTA POR BAIXO = a melhor rota que ATRAVESSA O MIOLO NO CHÃO. Bloqueia toda laje no terço
+   central do mapa (|z| ≤ 13 de 39): perto do spawn e perto da bandeira a laje continua
+   liberada — o que se cobra é que dê para CRUZAR por baixo, não que se rasteje o trajeto todo.
+   Primeira tentativa foi "melhor rota que encosta num nó da praça", e ela media outra coisa:
+   o caminho corria pela laje e só descia no último metro para tocar a praça (16% de chão num
+   trajeto dito "por baixo"). Tocar a praça não é ir por baixo. */
+const MIOLO_Z = 13;
+const bloqLaje = new Uint8Array(nodes.length);
+for (let i = 0; i < nodes.length; i++)
+  if (nodes[i].y >= Y_TERREO && Math.abs(nodes[i].z) <= MIOLO_Z) bloqLaje[i] = 1;
+const pares = [], falhouTerrea = [], falhouSuperior = [];
 for (const [time, ss] of Object.entries(W.spawns || {})) {
   for (const p of W.ctfPoints || []) {
     const from = W.nearestWaypoint(ss[0].x, ss[0].z), to = W.nearestWaypoint(p.x, p.z);
-    const classes = [];
-    for (const cam of rotasSeparadas(nodes, adj, from, to)) {
-      let total = 0, terreo = 0;
-      for (let i = 1; i < cam.length; i++) {
-        const A = nodes[cam[i - 1]], B = nodes[cam[i]];
-        const seg = Math.hypot(B.x - A.x, B.z - A.z);
-        total += seg;
-        if ((A.y + B.y) / 2 < Y_TERREO) terreo += seg;
-      }
-      const frac = total ? terreo / total : 0;
-      classes.push({ total, frac, terrea: frac >= FRAC_TERREA, superior: (1 - frac) >= FRAC_SUPERIOR });
-    }
     const rotulo = `${time}→${p.id}`;
-    const temT = classes.some((c) => c.terrea), temS = classes.some((c) => c.superior);
-    if (!temT) semTerrea.push(rotulo);
-    if (!temS) semSuperior.push(rotulo);
-    pares.push({ rotulo, n: classes.length,
-      perfis: classes.map((c) => `${c.total.toFixed(0)}m/${(c.frac * 100).toFixed(0)}%chão`).join(' ') });
+    const direto = Math.hypot(nodes[from].x - nodes[to].x, nodes[from].z - nodes[to].z);
+    const porCima = rotasSeparadas(nodes, adj, from, to);
+    if (!porCima.length) { falhouTerrea.push(`${rotulo}(sem rota)`); falhouSuperior.push(`${rotulo}(sem rota)`); continue; }
+    const L0 = comprimento(porCima[0]), fracCima = 1 - fracTerreo(porCima[0]);
+    const Lflanco = comprimento(porCima[1] || porCima[0]);
+    if (fracCima < FRAC_SUPERIOR) falhouSuperior.push(`${rotulo} ${(fracCima * 100).toFixed(0)}%laje`);
+    const atravessa = (ss[0].z < 0) !== (p.z < 0);
+    if (!atravessa) { pares.push(`${rotulo} mesmo lado(${direto.toFixed(0)}m) — só LV2`); continue; }
+    const porBaixo = caminhoBloqueado(nodes, adj, from, to, bloqLaje);
+    if (!porBaixo) { falhouTerrea.push(`${rotulo}(sem travessia por baixo)`); continue; }
+    const L1 = comprimento(porBaixo), frac = fracTerreo(porBaixo);
+    const fator = Lflanco ? L1 / Lflanco : Infinity;
+    const ok = frac >= FRAC_TERREA && fator <= FATOR_DETOUR;
+    if (!ok) falhouTerrea.push(`${rotulo} ${(frac * 100).toFixed(0)}%chão ${fator.toFixed(2)}×`);
+    pares.push(`${rotulo} direta ${L0.toFixed(0)}m · flanco ${Lflanco.toFixed(0)}m · baixo ${L1.toFixed(0)}m (${fator.toFixed(2)}× o flanco, ${(frac * 100).toFixed(0)}%chão)`);
   }
 }
-const lv1 = semTerrea.length === 0;
-const lv2 = semSuperior.length === 0;
+const lv1 = falhouTerrea.length === 0;
+const lv2 = falhouSuperior.length === 0;
+void rotasSeparadas;
 
 /* ===================== LV3 / LV4 — a praça ===================== */
 const B = W.bounds, STEP = 0.30;
@@ -127,14 +187,21 @@ const livreEm = (x, z) => {
    só entra em célula cujo disco de 1,9 m de raio esteja livre (o "miolo largo"). */
 const JAN = { x0: -11, x1: 11, z0: -14, z1: 13 };
 const jx = Math.ceil((JAN.x1 - JAN.x0) / STEP), jz = Math.ceil((JAN.z1 - JAN.z0) / STEP);
+const cel = (i, k) => [JAN.x0 + (i + .5) * STEP, JAN.z0 + (k + .5) * STEP];
+const livreCache = new Uint8Array(jx * jz);
+for (let i = 0; i < jx; i++) for (let k = 0; k < jz; k++) {
+  const [x, z] = cel(i, k);
+  if (livreEm(x, z)) livreCache[i * jz + k] = 1;
+}
+/* Miolo LARGO: célula cujo disco de R_SALA está livre. É o que separa sala de corredor. */
 const largo = new Uint8Array(jx * jz);
 for (let i = 0; i < jx; i++) for (let k = 0; k < jz; k++) {
-  const x = JAN.x0 + (i + .5) * STEP, z = JAN.z0 + (k + .5) * STEP;
-  if (!livreEm(x, z)) continue;
+  if (!livreCache[i * jz + k]) continue;
+  const [x, z] = cel(i, k);
   let ok = true;
   for (let a = 0; a < 12 && ok; a++) {
     const ang = a * Math.PI / 6;
-    if (!livreEm(x + Math.cos(ang) * 1.9, z + Math.sin(ang) * 1.9)) ok = false;
+    if (!livreEm(x + Math.cos(ang) * R_SALA, z + Math.sin(ang) * R_SALA)) ok = false;
   }
   if (ok) largo[i * jz + k] = 1;
 }
@@ -143,10 +210,8 @@ const salas = [];
 for (let i = 0; i < jx; i++) for (let k = 0; k < jz; k++) {
   if (!largo[i * jz + k] || comp[i * jz + k] >= 0) continue;
   const cid = salas.length, fila = [i * jz + k]; comp[i * jz + k] = cid;
-  let minI = i, maxI = i, minK = k, maxK = k;
   for (let h = 0; h < fila.length; h++) {
     const c = fila[h], ci = (c / jz) | 0, ck = c % jz;
-    minI = Math.min(minI, ci); maxI = Math.max(maxI, ci); minK = Math.min(minK, ck); maxK = Math.max(maxK, ck);
     for (const [di, dk] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
       const j = ci + di, l = ck + dk;
       if (j < 0 || j >= jx || l < 0 || l >= jz) continue;
@@ -154,19 +219,34 @@ for (let i = 0; i < jx; i++) for (let k = 0; k < jz; k++) {
       if (largo[d] && comp[d] < 0) { comp[d] = cid; fila.push(d); }
     }
   }
-  salas.push({ cid, cel: fila.length, minI, maxI, minK, maxK });
+  salas.push({ cid, cel: fila });
 }
-/* A área da praça é a do miolo largo DILATADO pelo raio do disco: a célula do flood é o
-   CENTRO de um disco de 1,9 m que cabe, então a sala real chega até a parede. */
-salas.sort((a, b) => b.cel - a.cel);
+/* A sala real = as células LIVRES a até R_SALA do miolo largo (dilatação exata). A célula do
+   flood é o CENTRO de um disco que cabe, então sem dilatar a praça mediria só o esqueleto. */
+salas.sort((a, b) => b.cel.length - a.cel.length);
 const sala = salas[0] || null;
-const praca = sala ? {
-  area: sala.cel * STEP * STEP + (sala.maxI - sala.minI + sala.maxK - sala.minK + 2) * STEP * 1.9,
-  largX: (sala.maxI - sala.minI + 1) * STEP + 3.8,
-  largZ: (sala.maxK - sala.minK + 1) * STEP + 3.8,
-  cx: JAN.x0 + (sala.minI + sala.maxI + 1) / 2 * STEP,
-  cz: JAN.z0 + (sala.minK + sala.maxK + 1) / 2 * STEP,
-} : null;
+let praca = null;
+if (sala) {
+  const raioCel = Math.ceil(R_SALA / STEP);
+  const dil = new Uint8Array(jx * jz);
+  for (const c of sala.cel) {
+    const ci = (c / jz) | 0, ck = c % jz;
+    for (let di = -raioCel; di <= raioCel; di++) for (let dk = -raioCel; dk <= raioCel; dk++) {
+      if (Math.hypot(di, dk) * STEP > R_SALA) continue;
+      const j = ci + di, l = ck + dk;
+      if (j < 0 || j >= jx || l < 0 || l >= jz) continue;
+      if (livreCache[j * jz + l]) dil[j * jz + l] = 1;
+    }
+  }
+  let n = 0, minI = jx, maxI = -1, minK = jz, maxK = -1;
+  for (let i = 0; i < jx; i++) for (let k = 0; k < jz; k++) {
+    if (!dil[i * jz + k]) continue;
+    n++; minI = Math.min(minI, i); maxI = Math.max(maxI, i); minK = Math.min(minK, k); maxK = Math.max(maxK, k);
+  }
+  praca = { area: n * STEP * STEP,
+    largX: (maxI - minI + 1) * STEP, largZ: (maxK - minK + 1) * STEP,
+    cx: JAN.x0 + (minI + maxI + 1) / 2 * STEP, cz: JAN.z0 + (minK + maxK + 1) / 2 * STEP };
+}
 const lv3 = !!praca && praca.area >= PRACA_AREA && praca.largX >= PRACA_LARG && praca.largZ >= PRACA_LARG
   && Math.hypot(praca.cx, praca.cz) <= PRACA_RAIO;
 
@@ -210,10 +290,10 @@ const fracVisada = testes ? vistos / testes : 0;
 const lv5 = fracVisada >= VISADA_MIN;
 
 const checks = [
-  ['LV1', 'todo par spawn↔bandeira tem rota TÉRREA', lv1,
-    semTerrea.length ? `sem térrea: ${semTerrea.join(', ')}` : `${pares.length} pares · ${pares.map((p) => `${p.rotulo}[${p.perfis}]`).join(' · ')}`],
-  ['LV2', 'todo par spawn↔bandeira tem rota SUPERIOR', lv2,
-    semSuperior.length ? `sem superior: ${semSuperior.join(', ')}` : `${pares.length} pares ok`],
+  ['LV1', 'atravessar por baixo custa o mesmo que flanquear por cima (≥40% chão, ≤1,5× o flanco)', lv1,
+    falhouTerrea.length ? `reprova: ${falhouTerrea.join(' · ')}` : pares.join(' · ')],
+  ['LV2', 'ir por cima continua sendo opção (≥60% em laje)', lv2,
+    falhouSuperior.length ? `reprova: ${falhouSuperior.join(', ')}` : `${pares.length} pares ok`],
   ['LV3', 'praça no térreo, no meio do mapa', lv3, praca
     ? `${praca.area.toFixed(0)} m² (min ${PRACA_AREA}) · ${praca.largX.toFixed(1)}×${praca.largZ.toFixed(1)} m (min ${PRACA_LARG}) · centro (${praca.cx.toFixed(1)},${praca.cz.toFixed(1)}) a ${Math.hypot(praca.cx, praca.cz).toFixed(1)} m do meio (max ${PRACA_RAIO})`
     : 'nenhuma sala larga no miolo'],

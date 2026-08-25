@@ -88,14 +88,41 @@ const MAIN_BECO = Object.freeze([
   [0, -27], [0, -18], [-3, -18], [-3, -10], [-3, -3],
   [2.5, -3], [2.5, 2], [2.5, 10], [-2, 10], [-2, 22], [1.5, 22], [1.5, 27.5],
 ]);
+/* Cada escada é servida por um ramal do beco — é assim que o pé dela entra no circuito de
+   baixo. Os dois últimos nasceram com a DESCIDA NORTE/SUL: sem ramal, o pé da DESCIDA SUL
+   ficava num bolso que só abria para o sul, e quem cruzava por baixo emergia sempre na ala
+   leste (a rota de baixo de E→P dava a volta por CS e saía 2,7× a de cima). */
 const BRANCHES = Object.freeze([
   [[-3, -10], [4.2, -10]], [[2.5, 2], [-4.2, 2]], [[1.5, 22], [4.2, 22]],
+  [[0, -26], [4.2, -26]], [[-2, 18], [-4.2, 18]],
 ]);
+/* `roof` = laje que o patamar de topo encosta (o A* liga o topo a ela).
+   DESCIDA NORTE/SUL nasceram do relato do dono de 25/08/2026 ("só vai por cima"): sem uma
+   descida a um plank de distância do spawn, toda rota spawn↔bandeira corria 100% em laje
+   (medido: 20 de 20 rotas, 0% de térreo — lajes-vertical-check.mjs). Elas caem nas faixas
+   livres que já existiam ao lado do beco (x 1,5–7 ao norte; espelhado ao sul). */
 const STAIR_CONFIGS = Object.freeze([
-  { name: 'ESCADARIA', side: 1, bottomZ: -10, dirZ: 1 },
-  { name: 'BECO DO VARAL', side: -1, bottomZ: 2, dirZ: 1 },
-  { name: 'ACESSO SUL', side: 1, bottomZ: 22, dirZ: -1 },
+  { name: 'ESCADARIA', side: 1, bottomZ: -10, dirZ: 1, roof: 'EN' },
+  { name: 'BECO DO VARAL', side: -1, bottomZ: 2, dirZ: 1, roof: 'WS' },
+  { name: 'ACESSO SUL', side: 1, bottomZ: 22, dirZ: -1, roof: 'SE' },
+  { name: 'DESCIDA NORTE', side: 1, bottomZ: -26, dirZ: 1, roof: 'NE' },
+  /* Em z = 24 o pé desta escada caía num bolso que só abre para o sul: quem cruzava o mapa
+     por baixo emergia sempre na ala LESTE e tinha que dar a volta por CS para chegar às
+     bandeiras do oeste (32 m de laje só de contorno). Em z = 18 o pé encosta no corredor
+     interno x ≈ −4,5, e a ala oeste ganha a subida que faltava. */
+  { name: 'DESCIDA SUL', side: -1, bottomZ: 18, dirZ: 1, roof: 'SW' },
 ]);
+/* NÃO acrescente uma escada no meio da praça. Foi tentado (ESCADA DA PRAÇA, side 1, bottomZ 0,
+   topo em ES): encurtou o detour da LV1 para 1,54×, mas as paredes de 5,9 m do poço ficam
+   justamente na borda leste da sala e derrubaram a visada das lajes de 62,4% para 42,9% (LV5)
+   — matando o "ver os becos" que comprou esta rodada. A praça sobe pela BECO DO VARAL (oeste)
+   e pela ACESSO SUL/ESCADARIA nas pontas; o miolo dela fica limpo de propósito. */
+/* PRAÇA DO MEIO (dono, 25/08/2026: "por baixo tinha que ter uma praça no meio, ver os becos").
+   Retângulo entre as lajes WS/ES (x = ∓7,4) e entre os vãos de serviço (z = −6 e 7): nenhuma
+   casa de beco, muro de beco ou pilastra nasce aqui, e o miolo vira sala em vez de corredor. */
+const PRACA = Object.freeze({ x0: -7.2, x1: 7.2, z0: -8.2, z1: 9.0 });
+const naPraca = (x, z, hx = 0, hz = 0) => x + hx > PRACA.x0 && x - hx < PRACA.x1
+  && z + hz > PRACA.z0 && z - hz < PRACA.z1;
 
 function setSky(scene) {
   if (typeof document === 'undefined') { scene.background = new THREE.Color(0xb8c8d2); return; }
@@ -377,10 +404,13 @@ export function buildLajes(scene, T) {
         const centro = cursor + halfAlong;
         const ux = a[0] + tx * centro + nx * side * (front + halfOut);
         const uz = a[1] + tz * centro + nz * side * (front + halfOut);
-        if (!tunnelPartAt(ux, uz) && !stairBandAt(ux, uz, halfAlong, halfOut) && front + halfOut * 2 <= clearance + .45) {
+        if (!tunnelPartAt(ux, uz) && !stairBandAt(ux, uz, halfAlong, halfOut) && !naPraca(ux, uz, halfAlong, halfOut)
+          && front + halfOut * 2 <= clearance + .45) {
           solidHouse(id, { x: ux, z: uz, targetH, ry });
           placedAny = true;
         } else if (cursor >= 1.3 && cursor + halfAlong * 2 <= length - 1.3
+          && !naPraca(a[0] + tx * centro + nx * side * (front + .01),
+            a[1] + tz * centro + nz * side * (front + .01), halfAlong, halfAlong)
           && !VANS_DE_FUGA.some((van) => Math.hypot(van.x - (a[0] + tx * centro + nx * side * (front + .01)),
             van.z - (a[1] + tz * centro + nz * side * (front + .01))) < van.r + 1)) {
           /* Slot vetado (escada/túnel/folga) longe da boca: painel de muro rente cobre o
@@ -525,6 +555,14 @@ export function buildLajes(scene, T) {
         if (s1 <= span0 || s0 >= span0 + wlen) continue;
         cortes.push([Math.max(span0, s0), Math.min(span0 + wlen, s1)]);
       }
+      /* PRAÇA: muro de beco nenhum atravessa a sala do meio — é o corte que transforma o
+         zigue-zague de corredor em praça (e o que abre a visada das lajes para o térreo). */
+      const perp = aoLongoX ? wcz : wcx;
+      if (aoLongoX ? (perp > PRACA.z0 && perp < PRACA.z1) : (perp > PRACA.x0 && perp < PRACA.x1)) {
+        const pa0 = aoLongoX ? PRACA.x0 : PRACA.z0, pa1 = aoLongoX ? PRACA.x1 : PRACA.z1;
+        const s0 = Math.max(span0, pa0), s1 = Math.min(span0 + wlen, pa1);
+        if (s1 > s0) cortes.push([s0, s1]);
+      }
       const emit = (from, to) => {
         const len = to - from;
         if (len < .55) return;
@@ -546,6 +584,7 @@ export function buildLajes(scene, T) {
   for (let i = 1; i < MAIN_BECO.length - 1; i++) {
     const A = MAIN_BECO[i - 1], V = MAIN_BECO[i], B = MAIN_BECO[i + 1];
     if (branchMouthAt.has(`${V[0]},${V[1]}`)) continue;
+    if (naPraca(V[0], V[1], 1.2, 1.2)) continue;   // a praça não tem pilastra de esquina de beco
     const d1 = [V[0] - A[0], V[1] - A[1]], d2 = [B[0] - V[0], B[1] - V[1]];
     const l1 = Math.hypot(d1[0], d1[1]), l2 = Math.hypot(d2[0], d2[1]);
     const cross = (d1[0] / l1) * (d2[1] / l2) - (d1[1] / l1) * (d2[0] / l2);
@@ -793,6 +832,15 @@ export function buildLajes(scene, T) {
     /* Borda lateral do patamar de topo que olha o poço do primeiro lance (AT1/MAP6):
         sem ela, quem chega pela laje despenca 5 m na valeta entre os lances. */
     addBox(.14, .62, width, MAT.brick, outerX - config.side * width / 2, ROOF_H, config.bottomZ);
+    /* Alvenaria FECHANDO o vão sob os lances. Os degraus são desenhados sem colisor (dá para
+       pisar em cima pelo groundHeightAt), então o chão sob a escada continuava andável e
+       cercado pelas paredes do poço: célula em que se cai e não se sai (lajes-antitrap). Só a
+       partir de 2,9 m depois do pé — daí em diante o lance de baixo já passa de 1,79 m e
+       ninguém pisa no chão ali, então a alvenaria não fecha degrau nenhum. */
+    const encheZ0 = config.bottomZ + config.dirZ * 2.9, encheZ1 = config.bottomZ + config.dirZ * (run + .65);
+    addBox(Math.abs(outerX - innerX) + width, 1.7, Math.abs(encheZ1 - encheZ0),
+      wallMat(MAT.stair, Math.abs(outerX - innerX) + width, 1.7),
+      (innerX + outerX) / 2, 0, (encheZ0 + encheZ1) / 2, { semBala: true });
     const left = Math.min(innerX, outerX) - width / 2 - .12, right = Math.max(innerX, outerX) + width / 2 + .12;
     /* Paredes do poço da escada são VISÍVEIS (tijolo) e PARAM 1,8 m depois do pé do
        lance: cruzar a faixa do ramal isolava o pé da escada num enclave de 14 células. */
@@ -805,13 +853,92 @@ export function buildLajes(scene, T) {
       { x: facadeX, z: config.bottomZ + config.dirZ * (run / 2 + .45), targetH: 6.45,
         ry: config.side > 0 ? -Math.PI / 2 : Math.PI / 2 });
     return {
-      nome: config.name, width,
+      nome: config.name, width, roof: config.roof,
       flights: [{ steps, direction: [0, config.dirZ] }, { steps, direction: [0, -config.dirZ] }],
       landings: [{ x: midX, z: midZ }, { x: topMidX, z: config.bottomZ }],
       bottom: { x: innerX, z: config.bottomZ }, top: { x: topX, z: config.bottomZ }, topo: ROOF_H,
     };
   };
   const stairs = STAIR_CONFIGS.map(addStaircase);
+  /* Entre a parede do poço da DESCIDA SUL (x ≈ −3,84) e o muro oeste do beco (x ≈ −2,95)
+     sobrava uma fresta de 0,68 m fechada nas duas pontas — construção, não passagem. A
+     alvenaria une as duas paredes, que é como isso existe em obra real. */
+  addBox(1.15, 2.9, 2.6, wallMat(MAT.brick, 1.15, 2.9), -3.38, 0, 21.0);
+
+  /* ===================== PRAÇA DO MEIO =====================
+     O miolo era zigue-zague de muro: da laje via-se parede cega e do chão via-se corredor.
+     Os muros já foram cortados pelo retângulo PRACA; aqui entra o que faz a sala LER como
+     praça — piso próprio, quadra pintada, e cover baixo o bastante para não devolver a
+     parede cega à laje (nada acima de 1,3 m no miolo; ver LV5). */
+  const MAT_PRACA = {
+    piso: mat({ map: concrete, color: 0x9a958c, roughness: .95 }),
+    pintura: mat({ color: 0xd9d4c6, roughness: .9 }),
+    banco: mat({ map: concrete, color: 0xc4bcae, roughness: .93 }),
+    folha: mat({ color: 0x4a6b39, roughness: .95 }),
+    tronco: mat({ color: 0x5a4530, roughness: .96 }),
+    tinta: mat({ color: 0x2f6ea8, roughness: .85 }),
+  };
+  const pracaCX = (PRACA.x0 + PRACA.x1) / 2, pracaCZ = (PRACA.z0 + PRACA.z1) / 2;
+  addFloor(PRACA.x1 - PRACA.x0, PRACA.z1 - PRACA.z0, pracaCX, pracaCZ, MAT_PRACA.piso, .012);
+  /* Quadra pintada: dá escala e direção à sala (o piso liso não dizia onde era o meio). */
+  const risco = (w, d, x, z) => {
+    const m = addFloor(w, d, x, z, MAT_PRACA.pintura, .02);
+    m.userData.pracaRisco = true; return m;
+  };
+  for (const [w, d, x, z] of [[7.2, .12, pracaCX, pracaCZ - 6.8], [7.2, .12, pracaCX, pracaCZ + 6.8],
+    [.12, 13.6, pracaCX - 3.6, pracaCZ], [.12, 13.6, pracaCX + 3.6, pracaCZ], [7.2, .12, pracaCX, pracaCZ]])
+    risco(w, d, x, z);
+  for (let a = 0; a < 28; a++) {   // círculo central da quadra
+    const ang = a / 28 * Math.PI * 2;
+    risco(.34, .12, pracaCX + Math.cos(ang) * 1.85, pracaCZ + Math.sin(ang) * 1.85);
+  }
+  /* Traves da pelada: estrutura fina, 1,15 m de travessão — não tampa a visada da laje. */
+  const trave = (z) => {
+    for (const dx of [-2.2, 2.2]) addBox(.1, 1.15, .1, MAT_PRACA.tinta, pracaCX + dx, 0, z, { cast: true });
+    addBox(4.5, .1, .1, MAT_PRACA.tinta, pracaCX, 1.15, z, { collide: false, bala: true });
+  };
+  trave(pracaCZ - 6.8); trave(pracaCZ + 6.8);
+  /* Cover da praça: peças BAIXAS espalhadas (a régua LV4 cobra ≥ 6 e espaçamento ≤ 7 m, o
+     mesmo teto da QUAD_ESPAC do map-check). Todas de caixa procedural — em node nenhum GLB
+     carrega, e cover que só existe no navegador é cover que a régua não vê (lição 3). */
+  const bancoDePraca = (x, z, alongX) => {
+    addBox(alongX ? 2.1 : .5, .45, alongX ? .5 : 2.1, MAT_PRACA.banco, x, 0, z);
+    addBox(alongX ? 2.1 : .12, .38, alongX ? .12 : 2.1, MAT_PRACA.banco, x + (alongX ? 0 : .19),
+      .45, z + (alongX ? .19 : 0), { collide: false, bala: true });
+  };
+  const floreira = (x, z) => {
+    addBox(1.5, .62, 1.5, MAT_PRACA.banco, x, 0, z);
+    const tronco = new THREE.Mesh(new THREE.CylinderGeometry(.13, .17, 2.5, 8), MAT_PRACA.tronco);
+    tronco.position.set(x, 1.87, z); tronco.castShadow = true; root.add(tronco);
+    for (const [ox, oy, oz, r] of [[0, 3.5, 0, 1.35], [-.75, 3.1, .5, .95], [.8, 3.2, -.45, .9]]) {
+      const copa = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 1), MAT_PRACA.folha);
+      copa.position.set(x + ox, oy, z + oz); copa.castShadow = true;
+      copa.userData.pracaCopa = true; root.add(copa);
+    }
+    colliders.push({ minX: x - .22, maxX: x + .22, minY: .62, maxY: 3.1, minZ: z - .22, maxZ: z + .22 });
+  };
+  const mesaDeBar = (x, z) => {
+    addBox(1.05, .74, 1.05, MAT_PRACA.tinta, x, 0, z);
+    for (const [dx, dz] of [[-.95, 0], [.95, 0], [0, -.95], [0, .95]])
+      addBox(.42, .44, .42, MAT_PRACA.tinta, x + dx, 0, z + dz);
+  };
+  /* Cover encostado nas BORDAS: o miolo da quadra fica limpo (é a sala que a LV3 cobra) e
+     quem atravessa a praça tem peça de peito ao alcance dos dois lados. */
+  bancoDePraca(-1.6, -7.4, true); bancoDePraca(1.8, 8.2, true);
+  /* Encostar peça na face da laje (x = ∓7,4) abre nicho de uma célula entre a peça e a
+     parede: andável, fechado, sem volta ao spawn (lajes-antitrap). Todas ficam a ≥ 1,0 m da
+     face, deixando corredor de corpo rente à laje. */
+  bancoDePraca(-5.8, -4.2, false); bancoDePraca(5.8, -5.6, false);
+  floreira(-5.7, -1.4); floreira(5.3, 7.6);
+  mesaDeBar(-5.6, 7.6); mesaDeBar(-3.2, -7.6);
+  /* Caixa d'água comunitária no chão + pilha de pneus: cover na altura do peito, nas pontas. */
+  addBox(1.25, 1.28, 1.25, MAT_PRACA.tinta, 3.9, 0, -7.4);
+  for (let i = 0; i < 3; i++) {
+    const pneu = new THREE.Mesh(new THREE.TorusGeometry(.42, .16, 8, 16), MAT.charcoal);
+    pneu.rotation.x = Math.PI / 2; pneu.position.set(-3.6, .17 + i * .3, 8.0);
+    pneu.castShadow = true; pneu.userData.pracaPneu = true; root.add(pneu);
+  }
+  colliders.push({ minX: -4.18, maxX: -3.02, minY: 0, maxY: .95, minZ: 7.42, maxZ: 8.58 });
 
   /* CHÃO MULTINÍVEL (yRef): mesma regra da Havan (map_havan.js:1632) — chão embaixo
      quando há pé-direito; sem yRef devolve o topo (comportamento antigo das réguas). */
@@ -904,6 +1031,15 @@ export function buildLajes(scene, T) {
   perimeterRun(false, 15.32, MIN_Z + .3, MAX_Z - .3);
   perimeterRun(true, MIN_Z + .32, -HALF_X + .3, HALF_X - .3);
   perimeterRun(true, MAX_Z - .32, -HALF_X + .3, HALF_X - .3);
+
+  /* FUNDO DE QUINTAL: a faixa de 2,1 m entre a traseira das lajes (|x| = 13,2) e o muro de
+     perímetro (15,32) corre os 78 m do mapa. Ela SEMPRE foi andável; o que faltava era não
+     virar rota. Foi tentado fechá-la com divisas de muro a cada ~10 m: quebra o corredor, mas
+     os vãos de serviço em que cada trecho ligaria de volta ao miolo são eles próprios becos
+     sem saída, e o lajes-antitrap saltou de 15 para 97 células sem volta ao spawn — o "dono
+     cai e não sai" que o portão existe para impedir. A faixa fica aberta como sempre esteve;
+     quem não entra nela é a MALHA DE NAVEGAÇÃO (ver gnx/gnz abaixo), então ela continua sendo
+     fundo de quintal em vez de virar a rota preferida dos bots e da régua. */
 
   const addAntenna = (x, y, z, rotation = 0) => {
     const group = new THREE.Group(); group.position.set(x, y, z); group.rotation.y = rotation;
@@ -1126,6 +1262,82 @@ export function buildLajes(scene, T) {
   for (let i = 1; i < MAIN_BECO.length; i++) line(MAIN_BECO[i - 1], MAIN_BECO[i]);
   for (const branch of BRANCHES) line(branch[0], branch[1]);
 
+  /* MALHA DE TÉRREO. O chão do lajes sempre foi andável fora do beco (a praça, as faixas ao
+     lado do beco, os vãos de serviço entre lajes), mas o GRAFO só tinha a linha do beco: 152
+     dos 363 nós estavam no chão e nenhuma rota spawn↔bandeira usava um só deles. Sem nó não
+     há rota, e sem rota o bot e a CTF2 enxergam um mapa que só existe por cima.
+     Aresta só nasce onde o MEIO do segmento também está livre — malha que atravessa parede é
+     pior que malha nenhuma (o bot anda contra o muro e o portão jura que há caminho). */
+  const terreoLivre = (x, z, r = .45) => {
+    if (groundHeightAt(x, z, 0) > .55) return false;
+    for (const c of colliders) {
+      if (c.minY > 1.4 || c.maxY < .25) continue;
+      if (x + r > c.minX && x - r < c.maxX && z + r > c.minZ && z - r < c.maxZ) return false;
+    }
+    return true;
+  };
+  /* Aresta só existe se o VÃO INTEIRO estiver livre. Testar só o ponto médio deixava a aresta
+     PULAR muro fino: com nós a 2,0 m e divisa de 0,26 m, o médio caía fora da parede e o grafo
+     jurava passagem onde havia muro (medido na divisa de fundo, 25/08). Passo 0,35 m < a
+     parede mais fina do mapa (0,08 m de portão à parte, que não colide). */
+  const vaoLivre = (ax, az, bx, bz) => {
+    const d = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.ceil(d / .35));
+    for (let s = 1; s < n; s++) {
+      const t = s / n;
+      if (!terreoLivre(ax + (bx - ax) * t, az + (bz - az) * t)) return false;
+    }
+    return true;
+  };
+  const GRID = 2.0;
+  const gx0 = -HALF_X + 1.3, gz0 = MIN_Z + 1.3;
+  const gnx = Math.floor((HALF_X - 1.3 - gx0) / GRID) + 1, gnz = Math.floor((MAX_Z - 1.3 - gz0) / GRID) + 1;
+  const malha = new Int32Array(gnx * gnz).fill(-1);
+  for (let i = 0; i < gnx; i++) for (let k = 0; k < gnz; k++) {
+    const x = gx0 + i * GRID, z = gz0 + k * GRID;
+    if (Math.abs(x) > 13.3 && Math.abs(z) < 30) continue;   // fundo de quintal: andável, não é rota
+    if (!terreoLivre(x, z)) continue;
+    const id = addNode(x, z, groundHeightAt(x, z, 0));
+    /* `malha` distingue o nó de NAVEGAÇÃO do nó da espinha AUTORADA (beco/ramal). A
+       lajes-spatial mede a largura do beco escolhendo trecho reto por GRAU do nó, e a malha
+       muda esse grau — sem a marca ela passaria a medir a praça achando que é beco (LS4). */
+    nodes[id].malha = true;
+    malha[i * gnz + k] = id;
+  }
+  for (let i = 0; i < gnx; i++) for (let k = 0; k < gnz; k++) {
+    const id = malha[i * gnz + k];
+    if (id < 0) continue;
+    const x = gx0 + i * GRID, z = gz0 + k * GRID;
+    /* Ortogonais + DIAGONAIS. Sem diagonal o caminho anda em escada e infla ~10% — e o que a
+       LV1 cobra é justamente o comprimento da rota de baixo contra a de cima. A diagonal só
+       nasce quando os DOIS vizinhos ortogonais também estão livres: sem isso ela corta a
+       quina do muro e o bot anda atravessando parede. */
+    for (const [di, dk] of [[1, 0], [0, 1], [1, 1], [1, -1]]) {
+      const j = i + di, l = k + dk;
+      if (j < 0 || j >= gnx || l < 0 || l >= gnz) continue;
+      const outro = malha[j * gnz + l];
+      if (outro < 0) continue;
+      if (!vaoLivre(x, z, x + di * GRID, z + dk * GRID)) continue;
+      if (di && dk && (malha[j * gnz + k] < 0 || malha[i * gnz + l] < 0)) continue;
+      link(id, outro);
+    }
+  }
+  /* Costura com a linha do beco: nó de beco encosta na malha só quando o caminho entre os
+     dois está livre — é o que impede a aresta que fura o muro do beco. */
+  for (let n = 0; n < nodes.length; n++) {
+    if (nodes[n].y > .6) continue;
+    const i0 = Math.round((nodes[n].x - gx0) / GRID), k0 = Math.round((nodes[n].z - gz0) / GRID);
+    for (let di = -1; di <= 1; di++) for (let dk = -1; dk <= 1; dk++) {
+      const i = i0 + di, k = k0 + dk;
+      if (i < 0 || i >= gnx || k < 0 || k >= gnz) continue;
+      const outro = malha[i * gnz + k];
+      if (outro < 0 || outro === n) continue;
+      const bx = gx0 + i * GRID, bz = gz0 + k * GRID;
+      if (Math.hypot(bx - nodes[n].x, bz - nodes[n].z) > GRID * 1.5) continue;
+      if (!vaoLivre(nodes[n].x, nodes[n].z, bx, bz)) continue;
+      link(n, outro);
+    }
+  }
+
   const roofPartNodes = new Map();
   for (const roof of ROOFS) roofPartNodes.set(roof.name, ROOF_PARTS.filter((part) => part.name === roof.name)
     .map((part) => addNode((part.x0 + part.x1) / 2, (part.z0 + part.z1) / 2, ROOF_H)));
@@ -1146,24 +1358,35 @@ export function buildLajes(scene, T) {
   }
   for (const stair of stairs) {
     const groundNode = addNode(stair.bottom.x, stair.bottom.z, 0), topNode = addNode(stair.top.x, stair.top.z, ROOF_H);
+    const meus = new Set([groundNode, topNode]);
     let previous = groundNode;
     for (const config of STAIR_CONFIGS.filter((item) => item.name === stair.nome)) {
       const innerX = config.side * 4.6, outerX = config.side * 6.05, run = 4.2;
       for (let i = 1; i <= 15; i++) { const n = addNode(innerX, config.bottomZ + config.dirZ * run * i / 15,
-        ROOF_H / 2 * i / 15); link(previous, n); previous = n; }
-      const landing = addNode(outerX, config.bottomZ + config.dirZ * run, ROOF_H / 2); link(previous, landing); previous = landing;
+        ROOF_H / 2 * i / 15); link(previous, n); previous = n; meus.add(n); }
+      const landing = addNode(outerX, config.bottomZ + config.dirZ * run, ROOF_H / 2); link(previous, landing); previous = landing; meus.add(landing);
       for (let i = 1; i <= 15; i++) { const n = addNode(outerX, config.bottomZ + config.dirZ * run * (1 - i / 15),
-        ROOF_H / 2 + ROOF_H / 2 * i / 15); link(previous, n); previous = n; }
+        ROOF_H / 2 + ROOF_H / 2 * i / 15); link(previous, n); previous = n; meus.add(n); }
     }
     link(previous, topNode);
-    let closestGround = 0, gd = Infinity;
-    for (let i = 0; i < nodes.length; i++) if (nodes[i].y < 1) {
+    /* O pé da escada tem que entrar no grafo do TÉRREO, não nos próprios degraus. O laço
+       antigo procurava o nó mais próximo com y < 1 e achava o PRIMEIRO DEGRAU desta mesma
+       escada (y = 0,17 a 0,28 m de distância): a escada ligava em si mesma e o chão do mapa
+       virava um componente separado do telhado — 300 nós de térreo isolados dos 307 de laje.
+       Era por isso que nenhuma rota spawn↔bandeira descia. Agora exclui os nós da própria
+       escada e exige o meio do vão livre (aresta que fura muro é pior que aresta nenhuma). */
+    let ligou = 0;
+    for (let i = 0; i < nodes.length; i++) {
+      if (meus.has(i) || nodes[i].y > .6) continue;
       const d = Math.hypot(nodes[i].x - stair.bottom.x, nodes[i].z - stair.bottom.z);
-      if (d < gd) { gd = d; closestGround = i; }
+      if (d > GRID * 1.6) continue;
+      if (!vaoLivre(stair.bottom.x, stair.bottom.z, nodes[i].x, nodes[i].z)) continue;
+      link(groundNode, i); ligou++;
     }
-    link(groundNode, closestGround);
-    const roofName = stair.nome === 'ESCADARIA' ? 'EN' : stair.nome === 'BECO DO VARAL' ? 'WS' : 'SE';
-    link(topNode, nearestRoofNode(roofName, [stair.top.x, stair.top.z]));
+    if (!ligou) {   // falha silenciosa aqui devolve o mapa só-por-cima que o dono reprovou
+      console.warn(`[lajes] pé da escada ${stair.nome} não encontrou o grafo do térreo`);
+    }
+    link(topNode, nearestRoofNode(stair.roof, [stair.top.x, stair.top.z]));
   }
 
   function nearestWaypoint(x, z) {
@@ -1253,7 +1476,7 @@ export function buildLajes(scene, T) {
   return {
     root, colliders, occluders, decalSolids: [root], groundHeightAt, spawns, sun, hemi,
     pickups, ctfPoints, ambience,sound:{loops:[{src:AMB_LOOPS.funk,pos:[0,3,0],radius:60,vol:.3},{src:AMB_LOOPS.passaros,pos:[0,3,0],radius:60,vol:.2}],bioma:'favela'}, waypoints: { nodes, adj }, nearestWaypoint, findPath,
-    stairs: mapStairs, staircases: stairs,
+    stairs: mapStairs, staircases: stairs, praca: PRACA,
     jumpImpulse: 5.85,
     levels: ROOFS.filter((roof) => roof.name !== 'MN' && roof.name !== 'MS').map((roof) => ({ nome: roof.label,
       x0: roof.x0 + .6, x1: roof.x1 - .6, z0: roof.z0 + .6, z1: roof.z1 - .6,

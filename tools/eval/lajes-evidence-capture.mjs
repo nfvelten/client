@@ -37,6 +37,14 @@ const POSES = [
   ['empilhamento-do-chao', -14.2, 0, -12, -Math.PI / 2 + 0.5, 0.30],
   ['empilhamento-do-chao-2', 1.5, 0, 30.5, 0.35, 0.32],
   ['circuito-cachorro', -2, 0, 9.5, Math.PI, 0.06],
+  /* Rodada da PRAÇA (dono, 25/08/2026: "por baixo tinha que ter uma praça no meio, ver os
+     becos e jogar cima contra baixo"). As quatro primeiras são o antes×depois do pedido. */
+  ['praca-do-chao-norte', 0, 0, -7.5, Math.PI, 0.02],
+  ['praca-do-chao-sul', 0, 0, 6.5, 0, 0.02],
+  ['praca-da-laje-oeste', -8.2, 5.2, -0.5, -Math.PI / 2, -0.34],
+  ['praca-da-laje-leste', 8.2, 5.2, -0.5, Math.PI / 2, -0.34],
+  ['descida-spawn-norte', 0, 5.2, -29.4, Math.PI, -0.22],
+  ['descida-spawn-sul', 0, 5.2, 29.4, 0, -0.22],
 ];
 
 const gRoot = execSync('npm root -g').toString().trim();
@@ -56,6 +64,16 @@ for (let att = 0; att < 3; att++) {
   try { await page.goto(`${BASE}/?debug=1&auto=P,mst&map=lajes`, { waitUntil: 'domcontentloaded', timeout: 120000 }); break; } catch (e) { console.log('goto retry', att); if (att === 2) throw e; }
 }
 await page.waitForFunction(() => window.__game && window.__game.state === 'live', null, { timeout: 300000 });
+/* O mapa servido TEM que ser o lajes. Em 25/08/2026 esta captura rodou inteira contra um
+   servidor velho de outra sessão que ainda registrava `fy_lajes`: `?map=lajes` caiu no
+   DEFAULT_MAP (praça dos poderes) e as 26 fotos saíram do mapa errado com "DONE" no fim.
+   Evidência de mapa errado é pior que evidência nenhuma — aqui ela custa erro (lição 5). */
+const mapaServido = await page.evaluate(() => window.__game._mapId);
+if (mapaServido !== 'lajes') {
+  await browser.close();
+  throw new Error(`SERVIDOR ERRADO: ?map=lajes carregou "${mapaServido}". `
+    + `Confira se ${BASE} é o SEU dev server (outra sessão pode estar segurando a porta).`);
+}
 await page.waitForTimeout(800);
 await page.evaluate(() => {
   const g = window.__game;

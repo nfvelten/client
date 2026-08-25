@@ -149,10 +149,16 @@ const probeWall = (x, z, nx, nz, y, sign) => {
    duplo) a sonda perpendicular corre corredor adentro e lê 8-12 m de "largura" fantasma.
    A largura do contrato (FONTE.md) mede TRECHO entre curvas. Filtro de instrumento: nó de
    grau ≥ 3 no térreo é junção; a aresta perto dele não entra na amostra. Teto intacto. */
+/* A LS4 mede a ESPINHA AUTORADA (beco + ramais), não a malha de navegação do térreo. A malha
+   é auxílio de A* espalhado pelo chão livre: ela muda o grau dos nós e, sem este filtro, o
+   seletor "trecho reto de grau 2" passava a cair na praça e a medir 2,01 m de "beco" (p50
+   estourando o teto de 1,90 m) — instrumento medindo outra coisa, não beco alargado. */
+const espinha = (i) => nodes[i] && nodes[i].y < 1 && !nodes[i].malha;
+const adjE = (i) => (adj[i] || []).filter(espinha);
 const juncoes = new Set();
 for (let i = 0; i < nodes.length; i++) {
-  if (nodes[i].y >= 1) continue;
-  const viz = (adj[i] || []).filter((n) => nodes[n]?.y < 1);
+  if (!espinha(i)) continue;
+  const viz = adjE(i);
   if (viz.length >= 3) { juncoes.add(i); continue; }
   if (viz.length === 2) {   // cotovelo: trecho mede corredor reto, não a praça da curva
     const A = nodes[viz[0]], B = nodes[viz[1]], C = nodes[i];
@@ -161,17 +167,22 @@ for (let i = 0; i < nodes.length; i++) {
     if (dot > -0.85) juncoes.add(i);
   }
 }
+/* A PRAÇA não é beco: o trecho da espinha que a atravessa é reto e sem parede lateral, e a
+   sonda perpendicular lê a sala inteira (11,16 m de "largura de beco" no p90). O retângulo vem
+   do MAPA (W.praca), não de número escrito à mão aqui. */
+const naPraca = (x, z) => W.praca && x > W.praca.x0 - 1 && x < W.praca.x1 + 1
+  && z > W.praca.z0 - 1 && z < W.praca.z1 + 1;
 const pertoDeJuncao = (x, z) => {
   for (const j of juncoes) if (Math.hypot(nodes[j].x - x, nodes[j].z - z) < 2.0) return true;
   return false;
 };
 for (let a = 0; a < nodes.length; a++) for (const b of adj[a] || []) {
-  if (b <= a || nodes[a].y >= 1 || nodes[b]?.y >= 1) continue;
+  if (b <= a || !espinha(a) || !espinha(b)) continue;
   const key = `${a}:${b}`; if (seen.has(key)) continue; seen.add(key);
   const A = nodes[a], B = nodes[b], dx = B.x - A.x, dz = B.z - A.z, len = Math.hypot(dx, dz);
   if (len < 0.5) continue;
   const straightAt = (center, other) => {
-    const neighbors = (adj[center] || []).filter((n) => n !== other && nodes[n]?.y < 1);
+    const neighbors = adjE(center).filter((n) => n !== other);
     if (neighbors.length !== 1) return false;
     const C = nodes[center], O = nodes[other], N = nodes[neighbors[0]];
     const ux = O.x - C.x, uz = O.z - C.z, vx = N.x - C.x, vz = N.z - C.z;
@@ -179,7 +190,7 @@ for (let a = 0; a < nodes.length; a++) for (const b of adj[a] || []) {
   };
   if (!straightAt(a, b) || !straightAt(b, a)) continue;
   const x = (A.x + B.x) / 2, z = (A.z + B.z) / 2, nx = -dz / len, nz = dx / len;
-  if (pertoDeJuncao(x, z)) continue;
+  if (pertoDeJuncao(x, z) || naPraca(x, z)) continue;
   if (!livre(x, z, 0)) continue;
   const width = probeWall(x, z, nx, nz, 0, -1) + probeWall(x, z, nx, nz, 0, 1) + 0.76;
   edgeWidths.push({ width, x, z });
