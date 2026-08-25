@@ -40,6 +40,7 @@ import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { THREE, MAPS, initTextures, bootGame } from './harness.mjs';
 import { SEP_ROTA } from './rotas-separadas.mjs';
+import { QUAD_ESPAC } from './limiares-mapa.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ONLY = process.argv[2] || 'all';
@@ -138,7 +139,8 @@ const QUAD_MIN_AND = 40;        // m² de chão andável pra um quadrante entrar
    acima disso um bot atravessa o quadrante percorrendo duas arestas inteiras sem ter uma
    peça de cobertura ao alcance — que é, em número, "o mapa fica vazio" do dono. */
 const QUAD_FRAC = 0.35;         // densidade mínima = 35% da mediana dos quadrantes do mapa
-const QUAD_ESPAC = 7.0;         // espaçamento médio máximo entre props do quadrante (m)
+/* QUAD_ESPAC vem de limiares-mapa.mjs: a LV4 do lajes mede o cover da praça contra o MESMO
+   teto, e número copiado entre réguas é o instrumento discordando de si (lição 2). */
 /* SEP_ROTA vem de rotas-separadas.mjs: a LV1/LV2 do lajes classifica as MESMAS rotas
    por altura, e limiar duplicado é o instrumento discordando de si (lição 2). */
 

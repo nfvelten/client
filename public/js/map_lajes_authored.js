@@ -14,10 +14,6 @@ export const LAJES_AUTHORED_ASSETS = Object.freeze([
   'lajes_casa_01', 'lajes_casa_02', 'lajes_casa_03', 'lajes_casa_04',
   'lajes_casa_05', 'lajes_casa_06', 'lajes_casa_07', 'lajes_varal', 'caixa_dagua',
 ]);
-export const LAJES_CONNECTIONS = Object.freeze([
-  'ESCADARIA', 'BECO DO VARAL', 'ACESSO SUL',
-  'ROTA DE MADEIRA OESTE', 'ROTA DE MADEIRA LESTE',
-]);
 export const LAJES_LOOPS = Object.freeze({
   beco: 'espinha sinuosa inferior com três ramais e retornos pelas escadas',
   laje: 'duas travessias superiores independentes ligadas por tábuas ancoradas',
@@ -120,6 +116,17 @@ const STAIR_CONFIGS = Object.freeze([
 /* PRAÇA DO MEIO (dono, 25/08/2026: "por baixo tinha que ter uma praça no meio, ver os becos").
    Retângulo entre as lajes WS/ES (x = ∓7,4) e entre os vãos de serviço (z = −6 e 7): nenhuma
    casa de beco, muro de beco ou pilastra nasce aqui, e o miolo vira sala em vez de corredor. */
+/* Lista LITERAL de propósito: a LA5 (lajes-authored-check) lê o FONTE, não o runtime, então
+   derivar daqui com spread deixa a régua enxergando zero escada. O que impede a enumeração de
+   envelhecer é a guarda abaixo, não o formato — escada nova sem entrada aqui derruba o build
+   em vez de sumir calada da planta. */
+export const LAJES_CONNECTIONS = Object.freeze([
+  'ESCADARIA', 'BECO DO VARAL', 'ACESSO SUL', 'DESCIDA NORTE', 'DESCIDA SUL',
+  'ROTA DE MADEIRA OESTE', 'ROTA DE MADEIRA LESTE',
+]);
+for (const c of STAIR_CONFIGS) {
+  if (!LAJES_CONNECTIONS.includes(c.name)) throw new Error(`escada ${c.name} fora de LAJES_CONNECTIONS`);
+}
 const PRACA = Object.freeze({ x0: -7.2, x1: 7.2, z0: -8.2, z1: 9.0 });
 const naPraca = (x, z, hx = 0, hz = 0) => x + hx > PRACA.x0 && x - hx < PRACA.x1
   && z + hz > PRACA.z0 && z - hz < PRACA.z1;
@@ -1400,7 +1407,11 @@ export function buildLajes(scene, T) {
     if (!ligou) {   // falha silenciosa aqui devolve o mapa só-por-cima que o dono reprovou
       console.warn(`[lajes] pé da escada ${stair.nome} não encontrou o grafo do térreo`);
     }
-    link(topNode, nearestRoofNode(stair.roof, [stair.top.x, stair.top.z]));
+    /* Sem `roof` o nearestRoofNode devolve undefined e o link entra MUDO no grafo: a escada
+       existe no pixel e não existe para o A*. Não saber tem que custar o mesmo que errar. */
+    const alvoLaje = nearestRoofNode(stair.roof, [stair.top.x, stair.top.z]);
+    if (alvoLaje == null) throw new Error(`escada ${stair.nome} sem laje de topo declarada (roof)`);
+    link(topNode, alvoLaje);
   }
 
   function nearestWaypoint(x, z) {

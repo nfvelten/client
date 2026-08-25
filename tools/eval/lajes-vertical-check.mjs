@@ -21,6 +21,8 @@
      LV4  a praça tem COVER e não é corredor morto: ≥ 6 peças de cobertura (0,4–2,2 m de
           altura) dentro dela, espaçamento médio ≤ 7,0 m — o mesmo teto da QUAD_ESPAC do
           map-check, pela mesma conta (√(100/densidade) = duas arestas do grafo);
+     LV6  toda aresta de térreo do grafo é ANDÁVEL de ponta a ponta (vão inteiro livre para o
+          corpo de 0,38 m), não só nas pontas;
      LV5  BECOS VISÍVEIS DE CIMA: das bordas de laje que dão para o miolo, ≥ 55% das amostras
           do térreo central têm linha de visada limpa.
 
@@ -35,12 +37,14 @@
                    → LV1 vermelha
      praca-cheia   enche a praça de colisores                → LV3/LV4 vermelhas
      laje-cega     ergue platibanda cega de 2,4 m na borda das lajes do miolo → LV5 vermelha
+     aresta-fantasma liga dois nós de térreo através de um muro → LV6 vermelha
 */
 import { THREE, bootGame, initTextures } from './harness.mjs';
 import { rotasSeparadas, caminhoBloqueado, RAIO_PONTA } from './rotas-separadas.mjs';
+import { QUAD_ESPAC } from './limiares-mapa.mjs';
 
 const mutante = process.argv.find((a) => a.startsWith('--mutante='))?.split('=')[1] || '';
-const conhecidos = new Set(['', 'so-por-cima', 'praca-cheia', 'laje-cega']);
+const conhecidos = new Set(['', 'so-por-cima', 'praca-cheia', 'laje-cega', 'aresta-fantasma']);
 if (!conhecidos.has(mutante)) throw new Error(`mutante desconhecido: ${mutante}`);
 
 const game = bootGame('lajes', { textures: initTextures(), bots: 0, seed: 25082026 });
@@ -80,7 +84,6 @@ const PRACA_LARG = 7.0;         // m de largura útil mínima nos dois eixos
 const R_SALA = 1.20;
 const PRACA_RAIO = 9.0;         // m: distância máxima do centro da praça ao meio do mapa
 const PRACA_COVER = 6;          // peças de cobertura mínimas dentro da praça
-const COVER_ESPAC = 7.0;        // m — mesmo teto da QUAD_ESPAC do map-check (mesma conta)
 const VISADA_MIN = 0.55;        // fração mínima de amostras do miolo visíveis das bordas
 
 if (mutante === 'so-por-cima') {
@@ -117,6 +120,35 @@ if (mutante === 'laje-cega') {
     W.colliders.push({ minX: side * 7.3 - .15, maxX: side * 7.3 + .15, minY: 5.2, maxY: 7.6,
       minZ: -16, maxZ: 14 });
   if (W.colliders.length <= antes) throw new Error('MUTANTE NÃO APLICOU');
+}
+
+if (mutante === 'aresta-fantasma') {
+  /* Liga dois nós de térreo separados por um muro de beco. É o defeito que o vaoLivre do
+     map_lajes_authored corrigiu: a aresta era aceita testando SÓ o ponto médio, então com nós
+     a 2,0 m e muro de 0,26 m o médio caía fora da parede e o grafo jurava passagem. */
+  const N = W.waypoints.nodes;
+  let ligou = 0;
+  for (let a = 0; a < N.length && !ligou; a++) {
+    if (N[a].y >= 1.6) continue;
+    for (let b = 0; b < N.length; b++) {
+      if (b === a || N[b].y >= 1.6) continue;
+      const d = Math.hypot(N[b].x - N[a].x, N[b].z - N[a].z);
+      if (d < 1.5 || d > 3.5) continue;
+      if (W.waypoints.adj[a].includes(b)) continue;
+      /* As DUAS pontas têm que ser andáveis e o MEIO bloqueado — é a assinatura exata do
+         defeito. Primeira versão só exigia o meio bloqueado, pegava par com ponta dentro de
+         sólido, e a LV6 (que pula ponta em sólido, isso é a LC5) não mordia: o mutante
+         sobreviveu parecendo que a régua não servia. */
+      const solido = (x, z) => {
+        const p = new THREE.Vector3(x, 0, z); game._collide(p, .38);
+        return Math.hypot(p.x - x, p.z - z) >= 1e-3;
+      };
+      if (solido(N[a].x, N[a].z) || solido(N[b].x, N[b].z)) continue;
+      if (!solido((N[a].x + N[b].x) / 2, (N[a].z + N[b].z) / 2)) continue;
+      W.waypoints.adj[a].push(b); W.waypoints.adj[b].push(a); ligou = 1; break;
+    }
+  }
+  if (!ligou) throw new Error('MUTANTE NÃO APLICOU: não achei par de nós de térreo separados por sólido');
 }
 
 /* ===================== LV1 / LV2 — cima × baixo ===================== */
@@ -261,7 +293,7 @@ const covers = (W.colliders || []).filter((c) => {
 });
 const areaPraca = praca ? praca.largX * praca.largZ : 0;
 const espacCover = covers.length ? Math.sqrt(areaPraca / covers.length) : Infinity;
-const lv4 = covers.length >= PRACA_COVER && espacCover <= COVER_ESPAC;
+const lv4 = covers.length >= PRACA_COVER && espacCover <= QUAD_ESPAC;
 
 /* ===================== LV5 — becos visíveis de cima ===================== */
 /* Ray-march contra os COLLIDERS (idênticos nos dois mundos — ver LIMITE CONHECIDO). */
@@ -289,6 +321,35 @@ for (const [ox, oz] of OLHOS) {
 const fracVisada = testes ? vistos / testes : 0;
 const lv5 = fracVisada >= VISADA_MIN;
 
+/* ===================== LV6 — aresta atravessável ===================== */
+/* Usa o _collide de PRODUÇÃO com o raio do jogador (0,38), não a caixa do gerador: a régua e
+   o jogo têm que rodar no mesmo mundo (lição 3). Amostra a 0,3 m — menor que a parede mais
+   fina que colide no mapa (0,14 m de guarda-corpo / 0,18 m de poço de escada). */
+const pLV6 = new THREE.Vector3();
+const andavel = (x, z) => {
+  pLV6.set(x, 0, z); game._collide(pLV6, .38);
+  return Math.hypot(pLV6.x - x, pLV6.z - z) < 1e-3;
+};
+const arestasRuins = [];
+let arestasTerreo = 0;
+for (let a = 0; a < nodes.length; a++) {
+  if (nodes[a].y >= Y_TERREO) continue;
+  for (const b of adj[a]) {
+    if (b <= a || nodes[b].y >= Y_TERREO) continue;
+    arestasTerreo++;
+    const A = nodes[a], B = nodes[b], d = Math.hypot(B.x - A.x, B.z - A.z);
+    if (!andavel(A.x, A.z) || !andavel(B.x, B.z)) continue;   // ponta em sólido é outra régua (LC5)
+    const passos = Math.max(1, Math.ceil(d / .3));
+    for (let s2 = 1; s2 < passos; s2++) {
+      const t = s2 / passos;
+      if (andavel(A.x + (B.x - A.x) * t, A.z + (B.z - A.z) * t)) continue;
+      arestasRuins.push(`(${A.x.toFixed(1)},${A.z.toFixed(1)})→(${B.x.toFixed(1)},${B.z.toFixed(1)})`);
+      break;
+    }
+  }
+}
+const lv6 = arestasRuins.length === 0;
+
 const checks = [
   ['LV1', 'atravessar por baixo custa o mesmo que flanquear por cima (≥40% chão, ≤1,5× o flanco)', lv1,
     falhouTerrea.length ? `reprova: ${falhouTerrea.join(' · ')}` : pares.join(' · ')],
@@ -298,7 +359,9 @@ const checks = [
     ? `${praca.area.toFixed(0)} m² (min ${PRACA_AREA}) · ${praca.largX.toFixed(1)}×${praca.largZ.toFixed(1)} m (min ${PRACA_LARG}) · centro (${praca.cx.toFixed(1)},${praca.cz.toFixed(1)}) a ${Math.hypot(praca.cx, praca.cz).toFixed(1)} m do meio (max ${PRACA_RAIO})`
     : 'nenhuma sala larga no miolo'],
   ['LV4', 'a praça tem cover (não é corredor morto)', lv4,
-    `${covers.length} peças (min ${PRACA_COVER}) · espaçamento ${espacCover === Infinity ? '∞' : espacCover.toFixed(1)} m (max ${COVER_ESPAC})`],
+    `${covers.length} peças (min ${PRACA_COVER}) · espaçamento ${espacCover === Infinity ? '∞' : espacCover.toFixed(1)} m (max ${QUAD_ESPAC})`],
+  ['LV6', 'toda aresta de térreo é andável de ponta a ponta', lv6,
+    `${arestasTerreo} arestas de térreo · ${arestasRuins.length} atravessam sólido${arestasRuins.length ? `: ${arestasRuins.slice(0, 6).join(' · ')}` : ''}`],
   ['LV5', 'os becos do miolo são visíveis das bordas de laje', lv5,
     `${(fracVisada * 100).toFixed(1)}% de ${testes} visadas limpas (min ${(VISADA_MIN * 100).toFixed(0)}%)`],
 ];
