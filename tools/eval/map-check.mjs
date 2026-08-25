@@ -39,6 +39,7 @@ import path from 'node:path';
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { THREE, MAPS, initTextures, bootGame } from './harness.mjs';
+import { SEP_ROTA } from './rotas-separadas.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ONLY = process.argv[2] || 'all';
@@ -138,7 +139,8 @@ const QUAD_MIN_AND = 40;        // m² de chão andável pra um quadrante entrar
    peça de cobertura ao alcance — que é, em número, "o mapa fica vazio" do dono. */
 const QUAD_FRAC = 0.35;         // densidade mínima = 35% da mediana dos quadrantes do mapa
 const QUAD_ESPAC = 7.0;         // espaçamento médio máximo entre props do quadrante (m)
-const SEP_ROTA = 6.0;           // m de afastamento pra duas rotas contarem como rotas diferentes
+/* SEP_ROTA vem de rotas-separadas.mjs: a LV1/LV2 do lajes classifica as MESMAS rotas
+   por altura, e limiar duplicado é o instrumento discordando de si (lição 2). */
 
 /* ---- MAP6: borda de andar alto não pode despejar o jogador sob a laje.
    Caso real (screenshot do dono, 09/08/2026): no mirante do escadao, a câmera apareceu
