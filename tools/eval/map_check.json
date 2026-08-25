@@ -1,5 +1,5 @@
 {
- "gerado": "2026-08-25T02:38:16.447Z",
+ "gerado": "2026-08-25T04:04:29.437Z",
  "criterios": {
   "map1": "corpo dentro de sólido: raycast do peito (1.4 m) até o chão; sólido com topo > 0.3 m acima do chão local reprova",
   "map2": "exposição: fração dos pontos andáveis a ≥ 25 m com _losClear até a cabeça (1.62 m) de quem nasce",
@@ -1359,9 +1359,9 @@
   },
   {
    "map": "lajes",
-   "celulasAlcancadas": 8646,
+   "celulasAlcancadas": 8621,
    "amostrasChao": 539,
-   "observadores": 134,
+   "observadores": 133,
    "corpoDentroDeSolido": 0,
    "submersosAcimaDoPeito": 0,
    "piorPenetracao": 0,
@@ -1487,24 +1487,14 @@
      "x": -1.9,
      "z": 32.3,
      "chao": 5.2,
-     "obsLonge": 86,
-     "obsVendo": 86,
+     "obsLonge": 85,
+     "obsVendo": 85,
      "frac": 1,
      "maiorVisada": 67.4
     },
     {
      "team": "B",
      "x": -0.65,
-     "z": 32.3,
-     "chao": 5.2,
-     "obsLonge": 86,
-     "obsVendo": 86,
-     "frac": 1,
-     "maiorVisada": 67.4
-    },
-    {
-     "team": "B",
-     "x": 0.65,
      "z": 32.3,
      "chao": 5.2,
      "obsLonge": 85,
@@ -1514,11 +1504,21 @@
     },
     {
      "team": "B",
-     "x": 1.9,
+     "x": 0.65,
      "z": 32.3,
      "chao": 5.2,
      "obsLonge": 84,
      "obsVendo": 84,
+     "frac": 1,
+     "maiorVisada": 67.4
+    },
+    {
+     "team": "B",
+     "x": 1.9,
+     "z": 32.3,
+     "chao": 5.2,
+     "obsLonge": 83,
+     "obsVendo": 83,
      "frac": 1,
      "maiorVisada": 67.5
     }
@@ -1751,6 +1751,102 @@
      "okLargura": true,
      "okInclinacao": true,
      "okDesvio": true
+    },
+    {
+     "nome": "DESCIDA NORTE L1",
+     "x0": 3.9599999999999995,
+     "x1": 5.239999999999999,
+     "z0": -26,
+     "z1": -21.8,
+     "degraus": 13,
+     "espelhoMed": 0.1866,
+     "espelhoMin": 0.1733,
+     "espelhoMax": 0.3467,
+     "pisoMed": 0.2733,
+     "larguraMedida": 1.25,
+     "subida": 2.427,
+     "corrida": 3.3,
+     "inclinacaoGraus": 36.33,
+     "blondel": 0.646,
+     "desvioChaoDegrau": 0,
+     "okEspelho": true,
+     "okPiso": true,
+     "okBlondel": true,
+     "okLargura": true,
+     "okInclinacao": true,
+     "okDesvio": true
+    },
+    {
+     "nome": "DESCIDA NORTE L2",
+     "x0": 5.41,
+     "x1": 6.6899999999999995,
+     "z0": -26,
+     "z1": -21.8,
+     "degraus": 13,
+     "espelhoMed": 0.1866,
+     "espelhoMin": 0.1733,
+     "espelhoMax": 0.3467,
+     "pisoMed": 0.2733,
+     "larguraMedida": 1.25,
+     "subida": 2.427,
+     "corrida": 3.3,
+     "inclinacaoGraus": 36.33,
+     "blondel": 0.646,
+     "desvioChaoDegrau": 0,
+     "okEspelho": true,
+     "okPiso": true,
+     "okBlondel": true,
+     "okLargura": true,
+     "okInclinacao": true,
+     "okDesvio": true
+    },
+    {
+     "nome": "DESCIDA SUL L1",
+     "x0": -5.239999999999999,
+     "x1": -3.9599999999999995,
+     "z0": 18,
+     "z1": 22.2,
+     "degraus": 13,
+     "espelhoMed": 0.1866,
+     "espelhoMin": 0.1733,
+     "espelhoMax": 0.3467,
+     "pisoMed": 0.2733,
+     "larguraMedida": 1.25,
+     "subida": 2.427,
+     "corrida": 3.3,
+     "inclinacaoGraus": 36.33,
+     "blondel": 0.646,
+     "desvioChaoDegrau": 0,
+     "okEspelho": true,
+     "okPiso": true,
+     "okBlondel": true,
+     "okLargura": true,
+     "okInclinacao": true,
+     "okDesvio": true
+    },
+    {
+     "nome": "DESCIDA SUL L2",
+     "x0": -6.6899999999999995,
+     "x1": -5.41,
+     "z0": 18,
+     "z1": 22.2,
+     "degraus": 13,
+     "espelhoMed": 0.1866,
+     "espelhoMin": 0.1733,
+     "espelhoMax": 0.3467,
+     "pisoMed": 0.2733,
+     "larguraMedida": 1.25,
+     "subida": 2.427,
+     "corrida": 3.3,
+     "inclinacaoGraus": 36.33,
+     "blondel": 0.646,
+     "desvioChaoDegrau": 0,
+     "okEspelho": true,
+     "okPiso": true,
+     "okBlondel": true,
+     "okLargura": true,
+     "okInclinacao": true,
+     "okDesvio": true
     }
    ],
    "travessia": [
@@ -1768,7 +1864,7 @@
     },
     {
      "nivel": "LAJE DO VARAL",
-     "celulasAlcancadas": 581,
+     "celulasAlcancadas": 567,
      "waypointsNoNivel": 6,
      "aEstrelaChega": true
     },
@@ -1798,7 +1894,7 @@
     },
     {
      "nivel": "LAJE DO CHURRASCO",
-     "celulasAlcancadas": 1038,
+     "celulasAlcancadas": 1026,
      "waypointsNoNivel": 11,
      "aEstrelaChega": true
     },
@@ -1816,7 +1912,7 @@
     }
    ],
    "occluderSemMalha": [],
-   "occMedidos": 971,
+   "occMedidos": 961,
    "occPulados": 0,
    "fracSemMalha": 0.0044,
    "quadrantes": [
@@ -1837,14 +1933,14 @@
      "q": "0,2",
      "x0": -15.5,
      "z0": 0,
-     "areaAndavel": 52,
+     "areaAndavel": 51,
      "props": 72,
      "waypoints": 15,
-     "densProp": 139.3,
-     "densWp": 29.02,
-     "espacamento": 0.85,
-     "razaoProp": 1.33,
-     "razaoWp": 1.18
+     "densProp": 141.35,
+     "densWp": 29.45,
+     "espacamento": 0.84,
+     "razaoProp": 1.35,
+     "razaoWp": 1.2
     },
     {
      "q": "2,3",
@@ -1852,12 +1948,12 @@
      "z0": 19.5,
      "areaAndavel": 49,
      "props": 43,
-     "waypoints": 58,
+     "waypoints": 72,
      "densProp": 88.21,
-     "densWp": 118.97,
+     "densWp": 147.69,
      "espacamento": 1.06,
      "razaoProp": 0.84,
-     "razaoWp": 4.83
+     "razaoWp": 5.99
     },
     {
      "q": "3,1",
@@ -1957,7 +2053,7 @@
      "rotas": 2,
      "comprimentos": [
       23.4,
-      130.4
+      89
      ]
     },
     {
@@ -1966,7 +2062,7 @@
      "rotas": 2,
      "comprimentos": [
       23.4,
-      130.4
+      105.3
      ]
     }
    ],

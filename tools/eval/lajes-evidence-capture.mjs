@@ -39,10 +39,10 @@ const POSES = [
   ['circuito-cachorro', -2, 0, 9.5, Math.PI, 0.06],
   /* Rodada da PRAÇA (dono, 25/08/2026: "por baixo tinha que ter uma praça no meio, ver os
      becos e jogar cima contra baixo"). As quatro primeiras são o antes×depois do pedido. */
-  ['praca-do-chao-norte', 0, 0, -7.5, Math.PI, 0.02],
-  ['praca-do-chao-sul', 0, 0, 6.5, 0, 0.02],
-  ['praca-da-laje-oeste', -8.2, 5.2, -0.5, -Math.PI / 2, -0.34],
-  ['praca-da-laje-leste', 8.2, 5.2, -0.5, Math.PI / 2, -0.34],
+  ['praca-do-chao-norte', 0, 0, 5.0, 0, 0.0],
+  ['praca-do-chao-sul', 0, 0, -6.0, Math.PI, 0.0],
+  ['praca-da-laje-oeste', -8.0, 5.2, 0.4, -Math.PI / 2, -0.30],
+  ['praca-da-laje-leste', 8.0, 5.2, 0.4, Math.PI / 2, -0.30],
   ['descida-spawn-norte', 0, 5.2, -29.4, Math.PI, -0.22],
   ['descida-spawn-sul', 0, 5.2, 29.4, 0, -0.22],
 ];

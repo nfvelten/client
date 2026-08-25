@@ -874,7 +874,9 @@ export function buildLajes(scene, T) {
     piso: mat({ map: concrete, color: 0x9a958c, roughness: .95 }),
     pintura: mat({ color: 0xd9d4c6, roughness: .9 }),
     banco: mat({ map: concrete, color: 0xc4bcae, roughness: .93 }),
-    folha: mat({ color: 0x4a6b39, roughness: .95 }),
+    folha: mat({ color: 0x4a6b39, roughness: .95, flatShading: true }),
+    folhaClara: mat({ color: 0x6f8f45, roughness: .93, flatShading: true }),
+    folhaEscura: mat({ color: 0x33502b, roughness: .96, flatShading: true }),
     tronco: mat({ color: 0x5a4530, roughness: .96 }),
     tinta: mat({ color: 0x2f6ea8, roughness: .85 }),
   };
@@ -910,10 +912,22 @@ export function buildLajes(scene, T) {
     addBox(1.5, .62, 1.5, MAT_PRACA.banco, x, 0, z);
     const tronco = new THREE.Mesh(new THREE.CylinderGeometry(.13, .17, 2.5, 8), MAT_PRACA.tronco);
     tronco.position.set(x, 1.87, z); tronco.castShadow = true; root.add(tronco);
-    for (const [ox, oy, oz, r] of [[0, 3.5, 0, 1.35], [-.75, 3.1, .5, .95], [.8, 3.2, -.45, .9]]) {
-      const copa = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 1), MAT_PRACA.folha);
-      copa.position.set(x + ox, oy, z + oz); copa.castShadow = true;
-      copa.userData.pracaCopa = true; root.add(copa);
+    for (const [gx, gy, gz, gr, ang] of [[.28, 2.9, .1, .55, .5], [-.3, 3.05, -.15, .5, -.7]]) {
+      const galho = new THREE.Mesh(new THREE.CylinderGeometry(.05, .08, gr * 2, 6), MAT_PRACA.tronco);
+      galho.position.set(x + gx, gy, z + gz); galho.rotation.z = ang; galho.castShadow = true; root.add(galho);
+    }
+    /* Copa em massas sobrepostas com dois verdes e facetas: três bolas lisas liam como balão
+       de desenho na captura de 25/08 — a mangueira da praça é o único vegetal do mapa e não
+       pode ser o elemento mais pobre do mapa mais bonito do jogo. */
+    const massas = [[0, 3.62, 0, 1.02, 'folha'], [-.78, 3.3, .46, .74, 'folhaEscura'],
+      [.82, 3.38, -.4, .7, 'folhaClara'], [.15, 3.1, -.85, .62, 'folhaEscura'],
+      [-.5, 3.05, -.55, .56, 'folha'], [.55, 3.05, .72, .58, 'folhaClara'],
+      [-.25, 4.12, .12, .66, 'folhaClara'], [.42, 3.92, -.3, .52, 'folha']];
+    for (const [ox, oy, oz, r, tom] of massas) {
+      const copa = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 1), MAT_PRACA[tom]);
+      copa.position.set(x + ox, oy, z + oz);
+      copa.rotation.set(ox, oz, oy * .3);   // quebra a repetição do icosaedro
+      copa.castShadow = true; copa.userData.pracaCopa = true; root.add(copa);
     }
     colliders.push({ minX: x - .22, maxX: x + .22, minY: .62, maxY: 3.1, minZ: z - .22, maxZ: z + .22 });
   };
@@ -1465,17 +1479,27 @@ export function buildLajes(scene, T) {
       { mode: 'ground', pos: [-11.3, ROOF_H, -19.5], phase: 4.6 },
       { mode: 'ground', pos: [10.9, ROOF_H, -2.2], phase: 5.3 },
       { mode: 'ground', pos: [1.6, ROOF_H, 30.5], phase: 6.1 },
+      /* Pombo de PRAÇA, no chão: junto da mesa de bar e do banco, não na laje. */
+      { mode: 'ground', pos: [-4.6, 0, 6.4], phase: 1.8 },
+      { mode: 'ground', pos: [2.9, 0, -5.8], phase: 3.7 },
     ],
     /* Caramelo do circuito inferior: trecho do beco [-2,10]→[-2,22], verificado livre
-       pelo lajes-circuito-check (LC4). Não é collider nem occluder. */
-    dogs: [{ pos: [-2, 0, 12.5], to: [-2, 0, 18.5], phase: .6 }],
+       pelo lajes-circuito-check (LC4). Não é collider nem occluder. O segundo cruza a PRAÇA
+       pelo eixo da quadra — praça de comunidade sem cachorro atravessando não existe. */
+    dogs: [{ pos: [-2, 0, 12.5], to: [-2, 0, 18.5], phase: .6 },
+      { pos: [-4.4, 0, 2.6], to: [3.2, 0, -2.4], phase: 2.4 }],
     /* Gato de telhado (BUG-57): ronda a laje do churrasco, parte sul [21.2,27] */
     cats: [{ pos: [-11.5, ROOF_H, 22.2], to: [-9.3, ROOF_H, 24.5], phase: 1.2 }],
   });
 
   return {
     root, colliders, occluders, decalSolids: [root], groundHeightAt, spawns, sun, hemi,
-    pickups, ctfPoints, ambience,sound:{loops:[{src:AMB_LOOPS.funk,pos:[0,3,0],radius:60,vol:.3},{src:AMB_LOOPS.passaros,pos:[0,3,0],radius:60,vol:.2}],bioma:'favela'}, waypoints: { nodes, adj }, nearestWaypoint, findPath,
+    pickups, ctfPoints, ambience,sound:{loops:[{src:AMB_LOOPS.funk,pos:[0,3,0],radius:60,vol:.3},{src:AMB_LOOPS.passaros,pos:[0,3,0],radius:60,vol:.2},
+      /* Burburinho da PRAÇA: raio curto de propósito (26 m contra os 60 dos loops de mapa) —
+         é o que faz descer para o térreo SOAR diferente de andar na laje. CC0 já embarcado
+         (cidade.mp3, Freesound 362949 — public/audio/ambiente/FONTE.md); sem asset novo, o
+         teto do eval:preload não se mexe. */
+      {src:AMB_LOOPS.cidade,pos:[0,1.6,0.4],radius:26,vol:.16}],bioma:'favela'}, waypoints: { nodes, adj }, nearestWaypoint, findPath,
     stairs: mapStairs, staircases: stairs, praca: PRACA,
     jumpImpulse: 5.85,
     levels: ROOFS.filter((roof) => roof.name !== 'MN' && roof.name !== 'MS').map((roof) => ({ nome: roof.label,
