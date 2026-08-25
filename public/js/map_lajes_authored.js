@@ -84,42 +84,30 @@ const MAIN_BECO = Object.freeze([
   [0, -27], [0, -18], [-3, -18], [-3, -10], [-3, -3],
   [2.5, -3], [2.5, 2], [2.5, 10], [-2, 10], [-2, 22], [1.5, 22], [1.5, 27.5],
 ]);
-/* Cada escada é servida por um ramal do beco — é assim que o pé dela entra no circuito de
-   baixo. Os dois últimos nasceram com a DESCIDA NORTE/SUL: sem ramal, o pé da DESCIDA SUL
-   ficava num bolso que só abria para o sul, e quem cruzava por baixo emergia sempre na ala
-   leste (a rota de baixo de E→P dava a volta por CS e saía 2,7× a de cima). */
+/* Cada escada é servida por um ramal do beco: é assim que o pé dela entra no circuito
+   de baixo. Sem ramal o pé fica em bolso — docs/maps/LAJES-PRACA.md */
 const BRANCHES = Object.freeze([
   [[-3, -10], [4.2, -10]], [[2.5, 2], [-4.2, 2]], [[1.5, 22], [4.2, 22]],
   [[0, -26], [4.2, -26]], [[-2, 18], [-4.2, 18]],
 ]);
 /* `roof` = laje que o patamar de topo encosta (o A* liga o topo a ela).
-   DESCIDA NORTE/SUL nasceram do relato do dono de 25/08/2026 ("só vai por cima"): sem uma
-   descida a um plank de distância do spawn, toda rota spawn↔bandeira corria 100% em laje
-   (medido: 20 de 20 rotas, 0% de térreo — lajes-vertical-check.mjs). Elas caem nas faixas
-   livres que já existiam ao lado do beco (x 1,5–7 ao norte; espelhado ao sul). */
+   DESCIDA NORTE/SUL: por que existem em docs/maps/LAJES-PRACA.md */
 const STAIR_CONFIGS = Object.freeze([
   { name: 'ESCADARIA', side: 1, bottomZ: -10, dirZ: 1, roof: 'EN' },
   { name: 'BECO DO VARAL', side: -1, bottomZ: 2, dirZ: 1, roof: 'WS' },
   { name: 'ACESSO SUL', side: 1, bottomZ: 22, dirZ: -1, roof: 'SE' },
   { name: 'DESCIDA NORTE', side: 1, bottomZ: -26, dirZ: 1, roof: 'NE' },
-  /* Em z = 24 o pé desta escada caía num bolso que só abre para o sul: quem cruzava o mapa
-     por baixo emergia sempre na ala LESTE e tinha que dar a volta por CS para chegar às
-     bandeiras do oeste (32 m de laje só de contorno). Em z = 18 o pé encosta no corredor
-     interno x ≈ −4,5, e a ala oeste ganha a subida que faltava. */
+  /* z = 18 e não 24: em 24 o pé cai em bolso que só abre ao sul e a ala oeste fica sem
+     subida — docs/maps/LAJES-PRACA.md */
   { name: 'DESCIDA SUL', side: -1, bottomZ: 18, dirZ: 1, roof: 'SW' },
 ]);
-/* NÃO acrescente uma escada no meio da praça. Foi tentado (ESCADA DA PRAÇA, side 1, bottomZ 0,
-   topo em ES): encurtou o detour da LV1 para 1,54×, mas as paredes de 5,9 m do poço ficam
-   justamente na borda leste da sala e derrubaram a visada das lajes de 62,4% para 42,9% (LV5)
-   — matando o "ver os becos" que comprou esta rodada. A praça sobe pela BECO DO VARAL (oeste)
-   e pela ACESSO SUL/ESCADARIA nas pontas; o miolo dela fica limpo de propósito. */
+/* NÃO acrescente escada no meio da praça: o poço de 5,9 m derruba a visada das lajes de
+   62,4% para 42,9% (LV5). Tentativa medida em docs/maps/LAJES-PRACA.md */
 /* PRAÇA DO MEIO (dono, 25/08/2026: "por baixo tinha que ter uma praça no meio, ver os becos").
    Retângulo entre as lajes WS/ES (x = ∓7,4) e entre os vãos de serviço (z = −6 e 7): nenhuma
    casa de beco, muro de beco ou pilastra nasce aqui, e o miolo vira sala em vez de corredor. */
-/* Lista LITERAL de propósito: a LA5 (lajes-authored-check) lê o FONTE, não o runtime, então
-   derivar daqui com spread deixa a régua enxergando zero escada. O que impede a enumeração de
-   envelhecer é a guarda abaixo, não o formato — escada nova sem entrada aqui derruba o build
-   em vez de sumir calada da planta. */
+/* LITERAL de propósito: a LA5 lê o FONTE, e spread deixa a régua vendo zero escada.
+   Quem impede a enumeração de envelhecer é a guarda abaixo, não o formato. */
 export const LAJES_CONNECTIONS = Object.freeze([
   'ESCADARIA', 'BECO DO VARAL', 'ACESSO SUL', 'DESCIDA NORTE', 'DESCIDA SUL',
   'ROTA DE MADEIRA OESTE', 'ROTA DE MADEIRA LESTE',
@@ -839,11 +827,8 @@ export function buildLajes(scene, T) {
     /* Borda lateral do patamar de topo que olha o poço do primeiro lance (AT1/MAP6):
         sem ela, quem chega pela laje despenca 5 m na valeta entre os lances. */
     addBox(.14, .62, width, MAT.brick, outerX - config.side * width / 2, ROOF_H, config.bottomZ);
-    /* Alvenaria FECHANDO o vão sob os lances. Os degraus são desenhados sem colisor (dá para
-       pisar em cima pelo groundHeightAt), então o chão sob a escada continuava andável e
-       cercado pelas paredes do poço: célula em que se cai e não se sai (lajes-antitrap). Só a
-       partir de 2,9 m depois do pé — daí em diante o lance de baixo já passa de 1,79 m e
-       ninguém pisa no chão ali, então a alvenaria não fecha degrau nenhum. */
+    /* Fecha o vão sob os lances: degrau não tem colisor, então o chão sob a escada ficava
+       andável e cercado (lajes-antitrap). A partir de 2,9 m o lance já passa de 1,79 m. */
     const encheZ0 = config.bottomZ + config.dirZ * 2.9, encheZ1 = config.bottomZ + config.dirZ * (run + .65);
     addBox(Math.abs(outerX - innerX) + width, 1.7, Math.abs(encheZ1 - encheZ0),
       wallMat(MAT.stair, Math.abs(outerX - innerX) + width, 1.7),
@@ -872,11 +857,8 @@ export function buildLajes(scene, T) {
      alvenaria une as duas paredes, que é como isso existe em obra real. */
   addBox(1.15, 2.9, 2.6, wallMat(MAT.brick, 1.15, 2.9), -3.38, 0, 21.0);
 
-  /* ===================== PRAÇA DO MEIO =====================
-     O miolo era zigue-zague de muro: da laje via-se parede cega e do chão via-se corredor.
-     Os muros já foram cortados pelo retângulo PRACA; aqui entra o que faz a sala LER como
-     praça — piso próprio, quadra pintada, e cover baixo o bastante para não devolver a
-     parede cega à laje (nada acima de 1,3 m no miolo; ver LV5). */
+  /* PRAÇA DO MEIO — o que faz a sala LER como praça. Cover baixo de propósito: peça alta
+     no miolo devolve a parede cega à laje (LV5). Porquê em docs/maps/LAJES-PRACA.md */
   const MAT_PRACA = {
     piso: mat({ map: concrete, color: 0x9a958c, roughness: .95 }),
     pintura: mat({ color: 0xd9d4c6, roughness: .9 }),
@@ -1053,14 +1035,8 @@ export function buildLajes(scene, T) {
   perimeterRun(true, MIN_Z + .32, -HALF_X + .3, HALF_X - .3);
   perimeterRun(true, MAX_Z - .32, -HALF_X + .3, HALF_X - .3);
 
-  /* FUNDO DE QUINTAL: a faixa de 2,1 m entre a traseira das lajes (|x| = 13,2) e o muro de
-     perímetro (15,32) corre os 78 m do mapa. Ela SEMPRE foi andável; o que faltava era não
-     virar rota. Foi tentado fechá-la com divisas de muro a cada ~10 m: quebra o corredor, mas
-     os vãos de serviço em que cada trecho ligaria de volta ao miolo são eles próprios becos
-     sem saída, e o lajes-antitrap saltou de 15 para 97 células sem volta ao spawn — o "dono
-     cai e não sai" que o portão existe para impedir. A faixa fica aberta como sempre esteve;
-     quem não entra nela é a MALHA DE NAVEGAÇÃO (ver gnx/gnz abaixo), então ela continua sendo
-     fundo de quintal em vez de virar a rota preferida dos bots e da régua. */
+  /* FUNDO DE QUINTAL (|x| > 13,3): fica aberto como sempre esteve; quem não entra é a MALHA
+     abaixo. Fechá-lo com divisas foi tentado e trava 97 células — docs/maps/LAJES-PRACA.md */
 
   const addAntenna = (x, y, z, rotation = 0) => {
     const group = new THREE.Group(); group.position.set(x, y, z); group.rotation.y = rotation;
@@ -1283,12 +1259,8 @@ export function buildLajes(scene, T) {
   for (let i = 1; i < MAIN_BECO.length; i++) line(MAIN_BECO[i - 1], MAIN_BECO[i]);
   for (const branch of BRANCHES) line(branch[0], branch[1]);
 
-  /* MALHA DE TÉRREO. O chão do lajes sempre foi andável fora do beco (a praça, as faixas ao
-     lado do beco, os vãos de serviço entre lajes), mas o GRAFO só tinha a linha do beco: 152
-     dos 363 nós estavam no chão e nenhuma rota spawn↔bandeira usava um só deles. Sem nó não
-     há rota, e sem rota o bot e a CTF2 enxergam um mapa que só existe por cima.
-     Aresta só nasce onde o MEIO do segmento também está livre — malha que atravessa parede é
-     pior que malha nenhuma (o bot anda contra o muro e o portão jura que há caminho). */
+  /* MALHA DE TÉRREO: o chão sempre foi andável fora do beco, mas só o beco tinha nós — sem
+     nó não há rota, e o mapa só existia por cima. Ver docs/maps/LAJES-PRACA.md */
   const terreoLivre = (x, z, r = .45) => {
     if (groundHeightAt(x, z, 0) > .55) return false;
     for (const c of colliders) {
@@ -1297,10 +1269,8 @@ export function buildLajes(scene, T) {
     }
     return true;
   };
-  /* Aresta só existe se o VÃO INTEIRO estiver livre. Testar só o ponto médio deixava a aresta
-     PULAR muro fino: com nós a 2,0 m e divisa de 0,26 m, o médio caía fora da parede e o grafo
-     jurava passagem onde havia muro (medido na divisa de fundo, 25/08). Passo 0,35 m < a
-     parede mais fina do mapa (0,08 m de portão à parte, que não colide). */
+  /* Vão INTEIRO, não o ponto médio: com nós a 2,0 m o médio cai fora de um muro de 0,26 m e
+     o grafo jura passagem onde há parede. Cobrado pela LV6. */
   const vaoLivre = (ax, az, bx, bz) => {
     const d = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.ceil(d / .35));
     for (let s = 1; s < n; s++) {
@@ -1328,10 +1298,8 @@ export function buildLajes(scene, T) {
     const id = malha[i * gnz + k];
     if (id < 0) continue;
     const x = gx0 + i * GRID, z = gz0 + k * GRID;
-    /* Ortogonais + DIAGONAIS. Sem diagonal o caminho anda em escada e infla ~10% — e o que a
-       LV1 cobra é justamente o comprimento da rota de baixo contra a de cima. A diagonal só
-       nasce quando os DOIS vizinhos ortogonais também estão livres: sem isso ela corta a
-       quina do muro e o bot anda atravessando parede. */
+    /* Diagonal só nasce com os DOIS vizinhos ortogonais livres, senão corta quina de muro.
+       Sem diagonal o caminho anda em escada e infla ~10% (a LV1 mede comprimento). */
     for (const [di, dk] of [[1, 0], [0, 1], [1, 1], [1, -1]]) {
       const j = i + di, l = k + dk;
       if (j < 0 || j >= gnx || l < 0 || l >= gnz) continue;
@@ -1390,12 +1358,8 @@ export function buildLajes(scene, T) {
         ROOF_H / 2 + ROOF_H / 2 * i / 15); link(previous, n); previous = n; meus.add(n); }
     }
     link(previous, topNode);
-    /* O pé da escada tem que entrar no grafo do TÉRREO, não nos próprios degraus. O laço
-       antigo procurava o nó mais próximo com y < 1 e achava o PRIMEIRO DEGRAU desta mesma
-       escada (y = 0,17 a 0,28 m de distância): a escada ligava em si mesma e o chão do mapa
-       virava um componente separado do telhado — 300 nós de térreo isolados dos 307 de laje.
-       Era por isso que nenhuma rota spawn↔bandeira descia. Agora exclui os nós da própria
-       escada e exige o meio do vão livre (aresta que fura muro é pior que aresta nenhuma). */
+    /* O pé entra no grafo do TÉRREO, não nos próprios degraus: o laço antigo achava o
+       primeiro degrau desta escada e separava chão de telhado — docs/maps/LAJES-PRACA.md */
     let ligou = 0;
     for (let i = 0; i < nodes.length; i++) {
       if (meus.has(i) || nodes[i].y > .6) continue;
@@ -1506,10 +1470,7 @@ export function buildLajes(scene, T) {
   return {
     root, colliders, occluders, decalSolids: [root], groundHeightAt, spawns, sun, hemi,
     pickups, ctfPoints, ambience,sound:{loops:[{src:AMB_LOOPS.funk,pos:[0,3,0],radius:60,vol:.3},{src:AMB_LOOPS.passaros,pos:[0,3,0],radius:60,vol:.2},
-      /* Burburinho da PRAÇA: raio curto de propósito (26 m contra os 60 dos loops de mapa) —
-         é o que faz descer para o térreo SOAR diferente de andar na laje. CC0 já embarcado
-         (cidade.mp3, Freesound 362949 — public/audio/ambiente/FONTE.md); sem asset novo, o
-         teto do eval:preload não se mexe. */
+      /* Burburinho da PRAÇA, raio 26 contra 60: descer SOA diferente. CC0 — FONTE.md */
       {src:AMB_LOOPS.cidade,pos:[0,1.6,0.4],radius:26,vol:.16}],bioma:'favela'}, waypoints: { nodes, adj }, nearestWaypoint, findPath,
     stairs: mapStairs, staircases: stairs, praca: PRACA,
     jumpImpulse: 5.85,
