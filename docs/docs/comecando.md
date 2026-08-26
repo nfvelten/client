@@ -39,7 +39,7 @@ esta página envelhecia no primeiro commit — ver
 
 | O que | Quanto | Onde confere |
 |---|---:|---|
-| Código do jogo | 41.707 linhas em 59 arquivos | `git ls-files public/js/*.js \| xargs wc -l` |
+| Código do jogo | 41.619 linhas em 59 arquivos | `git ls-files public/js/*.js \| xargs wc -l` |
 | `game.js` | **7.260** linhas | `wc -l public/js/game.js` |
 | `main.js` | 2.812 linhas | `wc -l public/js/main.js` |
 | Armas com GLB | 27 | `git ls-files 'public/models/weapons/*.glb' \| wc -l` |
@@ -228,7 +228,7 @@ Os mapas registrados hoje, e em que modo cada um abre:
 | `quebrada` | Quebrada (Rua do Baile) | **captura** | `map_quebrada.js` | 1.656 |
 | `escadao` | Escadão (Morro) | **captura** | `map_escadao.js` | 813 |
 | `campomorro` | Campo do Morro | **captura** | `map_campomorro.js` | 713 |
-| `lajes` | Lajes (Comunidade) | **captura** | `map_lajes_authored.js` | 1.640 |
+| `lajes` | Lajes (Comunidade) | **captura** | `map_lajes_authored.js` | 1.580 |
 | `corrego` | Córrego (Favela de SP) | **captura** | `map_corrego.js` | 1.258 |
 | `mansao` | Mansão do Joá | **captura** | `map_mansao.js` | 955 |
 | `posto_treta` | Posto da Treta | **captura** | `map_posto.js` | 506 |
