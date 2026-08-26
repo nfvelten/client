@@ -25,6 +25,17 @@
      ESC4 PALAFITA: corpo acima dos pilotis (collider com base ≈ 2,2 m), 2,4–2,8 m.
      ESC5 PROPS GLB: altura-alvo efetiva de cada prop colocado (registro `propEscala`
         do próprio mapa — valores de USO, não cópia) contra a faixa real da classe.
+     ESC6 BARRACO DO LAJES — AGLOMERAÇÃO. O lajes monta a fachada com casas de KIT, e o kit
+        é feito de torres estreitas: escaladas pela altura da laje (5,15 m) a fachada sai
+        com 1,87 m. Enfileiradas, três delas cabiam numa face de 5,8 m. Medido em 26/08:
+        127 casas, mediana de 4 por célula de 6 × 6 m e MÁXIMO DE 7 — o "os barracos estao
+        em escala errada, 3-4 barracos onde deviam ser apenas um" do dono, em número.
+        A cláusula cobra a AGLOMERAÇÃO, não a largura: com escala uniforme (que é o que o
+        `PropBatch` sabe fazer) a fachada estreita é propriedade do kit, e o que separa
+        "casa" de "palito" é o contexto — casa ladeada por alvenaria lê como casa, três
+        lado a lado leem como cerca de torres. O pé-direito por pavimento entra na MESMA
+        faixa PE_MIN/PE_MAX das outras cláusulas: número copiado entre réguas é o
+        instrumento discordando de si (lição 2).
    Sem alvo mensurável (mesh de vão ausente, registro ausente) a régua fica VERMELHA —
    "não sei medir" custa o mesmo que estar errado.
 
@@ -34,10 +45,13 @@
      --mutante=piso-gigante   (malha de vão com altura ×1,2)      → ESC2
      --mutante=puxadinho-alto (colliders da fileira C +1,2 m)     → ESC3
      --mutante=palafita-alta  (colliders de palafita +0,8 m)      → ESC4
-     --mutante=escala2x       (altura-alvo de todo prop ×2)       → ESC5 */
+     --mutante=escala2x       (altura-alvo de todo prop ×2)       → ESC5
+     --mutante=barracada      (repõe as casas enfileiradas do lajes) → ESC6 */
 import { THREE, initTextures, bootGame } from './harness.mjs';
 
 const mutante = (process.argv.find((a) => a.startsWith('--mutante=')) || '').split('=')[1] || null;
+const MUTANTES = new Set([null, 'porta-ana', 'piso-gigante', 'puxadinho-alto', 'palafita-alta', 'escala2x', 'barracada']);
+if (!MUTANTES.has(mutante)) throw new Error(`mutante desconhecido: ${mutante}`);
 
 const PORTA_MIN = 2.00, PORTA_MAX = 2.20;      // altura de porta de casa (BUG-55)
 const PE_MIN = 2.40, PE_MAX = 2.80;            // pé-direito de barraco 1 pavimento (BUG-55)
@@ -164,6 +178,39 @@ console.log(`barracos de muro: ${puxadinhos.length} (ok ${puxOk.length}) · altu
 console.log(`palafitas: ${palafitas.length} (ok ${palOk.length}) · corpos: ${[...new Set(palafitas.map((c) => Math.round((c.maxY - c.minY) * 100) / 100))].map(fmt).join(' · ')} m`);
 console.log(`props: ${propEscala.length} colocados, ${propsOk.length} na faixa real${propEscala.length ? ' · ' + [...new Set(propEscala.map((p) => `${p.id}=${fmt(p.h)}m`))].join(' · ') : ''}`);
 
+/* ---- ESC6: aglomeração de barraco no LAJES (outro mapa, mesmo conceito de escala) ---- */
+const jogoLajes = bootGame('lajes', { textures: initTextures(), ctf: true, seed: 26082026 });
+const casasLajes = jogoLajes.world.colliders.filter((c) => c.casa);
+if (mutante === 'barracada') {
+  /* Repõe o defeito: mais duas casas coladas em cada casa existente, que é exatamente o
+     enfileiramento que esta rodada tirou. Mexe no MUNDO (a lista de colisores que a régua
+     lê), não no número medido. */
+  for (const c of [...casasLajes]) for (const passo of [1, 2]) {
+    const largo = c.maxX - c.minX < c.maxZ - c.minZ;
+    const d = (largo ? c.maxX - c.minX : c.maxZ - c.minZ) + .14;
+    casasLajes.push({ ...c,
+      minX: c.minX + (largo ? d * passo : 0), maxX: c.maxX + (largo ? d * passo : 0),
+      minZ: c.minZ + (largo ? 0 : d * passo), maxZ: c.maxZ + (largo ? 0 : d * passo) });
+  }
+}
+/* Célula de 6 m: é a face de um bloco de laje deste mapa (5,8 m) arredondada — a unidade em
+   que o olho conta "quantas casas tem ali". O TETO de 4 sai da geometria, não do gosto: uma
+   célula de 6 m cabe um bloco de laje, e um bloco tem QUATRO faces. Uma casa por face é o
+   desenho pretendido; a quinta casa da célula é necessariamente uma fila na mesma fachada,
+   que é o defeito que o dono nomeou. Medido: 7 no pior caso antes, 4 depois. */
+const CELULA = 6, CASAS_POR_CELULA = 4;
+const porCelula = new Map();
+for (const c of casasLajes) {
+  const k = `${Math.round((c.minX + c.maxX) / 2 / CELULA)}:${Math.round((c.minZ + c.maxZ) / 2 / CELULA)}`;
+  porCelula.set(k, (porCelula.get(k) || 0) + 1);
+}
+const amontoadas = [...porCelula.values()].filter((n) => n > CASAS_POR_CELULA);
+const piorCelula = porCelula.size ? Math.max(...porCelula.values()) : 0;
+const peLajes = casasLajes.map((c) => c.casaH / Math.max(1, Math.round(c.casaH / 2.7)));
+const peForaDaFaixa = peLajes.filter((h) => h < PE_MIN || h > PE_MAX).length;
+console.log(`lajes: ${casasLajes.length} casas de kit · pior célula de ${CELULA} m: ${piorCelula} casas`
+  + ` · ${amontoadas.length} célula(s) acima de ${CASAS_POR_CELULA} · pé-direito fora da faixa: ${peForaDaFaixa}`);
+
 const checks = [
   ['ESC1 toda casa tem porta 2,00–2,20 m no térreo (base ≤ 0,15 m)',
     malhasVao.length > 0 && portas.length >= 15 && portasOk.length === portas.length,
@@ -185,6 +232,10 @@ const checks = [
     propEscala.length >= 15 && propsOk.length === propEscala.length,
     propEscala.length < 15 ? 'registro propEscala ausente/curto — régua sem alvo' :
       `${propsOk.length}/${propEscala.length} na faixa`],
+  [`ESC6 barraco do lajes: no máximo ${CASAS_POR_CELULA} casas por célula de ${CELULA} m e pé-direito 2,40–2,80 m`,
+    casasLajes.length >= 30 && amontoadas.length === 0 && peForaDaFaixa === 0,
+    casasLajes.length < 30 ? `${casasLajes.length} casas marcadas — filtro perdeu o alvo (falta \`casa\` no colisor?)` :
+      `pior célula ${piorCelula} · ${amontoadas.length} amontoada(s) · ${peForaDaFaixa} fora da faixa de pé-direito`],
 ];
 
 let falhas = 0;

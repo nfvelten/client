@@ -120,6 +120,10 @@ export const LAJES_CONNECTIONS = Object.freeze([
 for (const c of STAIR_CONFIGS) {
   if (!LAJES_CONNECTIONS.includes(c.name)) throw new Error(`escada ${c.name} fora de LAJES_CONNECTIONS`);
 }
+/* Vão de alvenaria entre duas casas de beco. 2,2 m = a fachada que o kit entrega (1,87 m)
+   com folga: com ele o passo casa→casa passa de ~2,0 m para ~4,1 m, e nenhuma célula de
+   6 m do beco recebe mais de duas casas (ESC6). */
+const VAO_ENTRE_CASAS = 2.2;
 const PRACA = Object.freeze({ x0: -7.2, x1: 7.2, z0: -8.2, z1: 9.0 });
 const naPraca = (x, z, hx = 0, hz = 0) => x + hx > PRACA.x0 && x - hx < PRACA.x1
   && z + hz > PRACA.z0 && z - hz < PRACA.z1;
@@ -264,7 +268,8 @@ export function buildLajes(scene, T) {
     /* `casa` marca o colisor como CASA DO KIT: é o que deixa a régua de escala contar
        barraco (e só barraco) sem adivinhar pela caixa. */
     colliders.push({ minX: x - hx, maxX: x + hx, minY: y, maxY: y + options.targetH,
-      minZ: z - hz, maxZ: z + hz, casa: id, casaH: options.targetH });
+      minZ: z - hz, maxZ: z + hz, casa: id, casaH: options.targetH,
+      casaFrente: hxL * 2, casaFundo: hzL * 2, casaRy: ry });
     /* Sem proxy de bala: o occluder da casa é a PRÓPRIA malha instanciada (empurrada em
        build()). Caixa sólida divergia da silhueta real nos recuos e pergolados do kit —
        era o "bala=9 m, visível=26 m" da régua. */
@@ -387,7 +392,7 @@ export function buildLajes(scene, T) {
       while (clearance >= 1.6) {
         const pool = clearance < 3.2 ? SHALLOW_HOUSES : HOUSE_IDS;
         let id = pool[(index * 2 + i + (side > 0 ? 3 : 0)) % pool.length];
-        let targetH = hBase + .2 + (i % 2) * .35;
+        let targetH = hBase;
         let native = HOUSE_BOUNDS[id];
         let s = targetH / native[4];
         const front = width / 2 + .02 + (i % 2) * .04;
@@ -397,7 +402,7 @@ export function buildLajes(scene, T) {
              desconta a faixa livre do vizinho; +0,45 é o raio do corpo que ninguém usa). */
           id = SHALLOW_HOUSES[(index + i) % SHALLOW_HOUSES.length];
           native = HOUSE_BOUNDS[id];
-          targetH = 4.2 + (i % 2) * .5;   // raso em altura plena: feição grande, fundo curto
+          targetH = 2.70;   // raso vira TÉRREA de um pavimento — não meio sobrado
           s = targetH / native[4];
         }
         const halfAlong = (native[1] - native[0]) / 2 * s;   // largura nativa: ao longo do beco
@@ -424,7 +429,26 @@ export function buildLajes(scene, T) {
             a[1] + tz * centro + nz * side * (front + .01), index + i);
           placedAny = true;
         }
-        cursor += halfAlong * 2 + .12;
+        /* MURO ENTRE CASAS. O passo era `halfAlong * 2 + .12`, ou seja fachada colada em
+           fachada: com a fachada de 1,87 m que o kit entrega, cabiam três casas em 6 m e o
+           beco lia como cerca de torres — o "3-4 barracos onde deviam ser apenas um" do
+           dono. Agora entra um painel de alvenaria (o mesmo `wallWithRelief` dos vãos
+           vetados) entre uma casa e a próxima, e o passo cresce para o vão inteiro. A casa
+           volta a ter vizinha de muro, que é como comunidade é de perto. Cobrado pela ESC6. */
+        const vao = VAO_ENTRE_CASAS;
+        if (placedAny && cursor + halfAlong * 2 + vao < length - .95) {
+          const mx = cursor + halfAlong * 2 + vao / 2;
+          const px = a[0] + tx * mx + nx * side * (front + .01);
+          const pz = a[1] + tz * mx + nz * side * (front + .01);
+          if (!naPraca(px, pz, vao / 2, vao / 2)
+            && !VANS_DE_FUGA.some((van) => Math.hypot(van.x - px, van.z - pz) < van.r + 1)) {
+            const pw = Math.abs(dx) > Math.abs(dz) ? vao : .26;
+            const pd = Math.abs(dx) > Math.abs(dz) ? .26 : vao;
+            wallWithRelief(pw, 2.9 + ((index + i) % 3) * .45, pd,
+              (index + i) % 2 ? MAT.brick : MAT.roof, px, pz, index + i);
+          }
+        }
+        cursor += halfAlong * 2 + vao;
         i++;
       }
       /* Cada lado vira uma wallLine cortada depois (boca de ramal, túnel, esquina) — fim
@@ -675,34 +699,67 @@ export function buildLajes(scene, T) {
             roofGroup.add(divisa);
             continue;
           }
-          let cursor = -face.len / 2 + .06;   // cursor = borda do slot; casa centrada no slot
-          while (true) {
-            let id = HOUSE_IDS[(roofIndex * 3 + fi) % HOUSE_IDS.length];
-            let native = HOUSE_BOUNDS[id];
-            const targetH = ROOF_H - .05;
-            let s = targetH / native[4];
-            const depthLimit = (face.dx ? part.z1 - part.z0 : part.x1 - part.x0) - .12;
-            if ((native[3] - native[2]) * s > depthLimit) {
-              id = SHALLOW_HOUSES[(roofIndex + fi) % SHALLOW_HOUSES.length];   // modelo fundo atravessa o bloco
-              native = HOUSE_BOUNDS[id];
-              s = targetH / native[4];
-            }
-            const halfAlong = (native[1] - native[0]) / 2 * s;
-            const halfOut = (native[3] - native[2]) / 2 * s;
-            if (cursor + halfAlong * 2 > face.len / 2 - .06) break;
-            const centro = cursor + halfAlong;
-            const hx = face.cx + face.dx * centro - face.outward[0] * (halfOut - .03);
-            const hz = face.cz + face.dz * centro - face.outward[1] * (halfOut - .03);
-            const ry = face.outward[1] === -1 ? Math.PI : face.outward[1] === 1 ? 0
-              : face.outward[0] === 1 ? Math.PI / 2 : -Math.PI / 2;
-            const hxW = face.dx ? halfAlong : halfOut, hzW = face.dx ? halfOut : halfAlong;
-            const invadeGap = (part.z0 > roof.z0 && hz - hzW < part.z0 + .06)
-              || (part.z1 < roof.z1 && hz + hzW > part.z1 - .06);
-            if (!invadeGap && !stairBandAt(hx, hz, hxW, hzW) && !roofAccessNear(hx, hz))
-              solidHouse(id, { x: hx, z: hz, targetH, ry });
-            cursor += halfAlong * 2 + .14;
-            fi++;
+          /* UMA CASA POR FACE, e o resto é MURO. O laço antigo enfileirava casas até a face
+             acabar, e as casas do kit são TORRES ESTREITAS: escaladas pela altura da laje
+             (5,15 m) a fachada sai com 1,87 m. Numa face de 5,8 m cabiam três — medido:
+             125 de 127 casas com fachada abaixo de 2,2 m, razão largura/altura 0,36, e
+             mediana de 4 casas por célula de 6 × 6 m (máximo 7). É literalmente o "os
+             barracos estao em escala errada, 3-4 barracos onde deviam ser apenas um" do
+             dono (26/08/2026).
+             POR QUE NÃO ALARGAR A CASA em vez de tirar as vizinhas: `placeProp` e o
+             `PropBatch` escalam UNIFORME (o `targetLen` é média geométrica com a altura,
+             não estica só a largura). Para a fachada encher os 5,8 m da face o modelo
+             precisaria de 2,24× no horizontal, e escala não uniforme em malha instanciada é
+             outra frente. O que separa "casa" de "palito" aqui é o CONTEXTO: uma casa
+             ladeada por alvenaria lê como casa; três lado a lado leem como cerca de torres.
+             O muro é o `wallWithRelief` que este mapa já usa nos vãos vetados — viga de
+             coroamento, janela e remendo —, então nada de novo entra no vocabulário visual.
+             Pé-direito continua em 2,58 m por pavimento (dois pavimentos em 5,15 m), dentro
+             da faixa 2,4–2,8 m do BUG-55. */
+          let id = HOUSE_IDS[(roofIndex * 3 + fi) % HOUSE_IDS.length];
+          let native = HOUSE_BOUNDS[id];
+          const targetH = ROOF_H - .05;
+          let s = targetH / native[4];
+          const depthLimit = (face.dx ? part.z1 - part.z0 : part.x1 - part.x0) - .12;
+          if ((native[3] - native[2]) * s > depthLimit) {
+            id = SHALLOW_HOUSES[(roofIndex + fi) % SHALLOW_HOUSES.length];   // modelo fundo atravessa o bloco
+            native = HOUSE_BOUNDS[id];
+            s = targetH / native[4];
           }
+          const halfAlong = (native[1] - native[0]) / 2 * s;
+          const halfOut = (native[3] - native[2]) / 2 * s;
+          const ry = face.outward[1] === -1 ? Math.PI : face.outward[1] === 1 ? 0
+            : face.outward[0] === 1 ? Math.PI / 2 : -Math.PI / 2;
+          const hxW = face.dx ? halfAlong : halfOut, hzW = face.dx ? halfOut : halfAlong;
+          /* A casa fica DESCENTRADA por face (fatia 0, 1 ou 2 dos terços úteis, alternando
+             com o índice do bloco): fachada sempre no meio de toda face devolve simetria de
+             maquete, que é o oposto de comunidade. */
+          const util = face.len / 2 - .06 - halfAlong;
+          const terco = [0, -1, 1, -1, 1, 0][(roofIndex + fi) % 6] * util * .55;
+          const centro = Math.max(-util, Math.min(util, terco));
+          const hx = face.cx + face.dx * centro - face.outward[0] * (halfOut - .03);
+          const hz = face.cz + face.dz * centro - face.outward[1] * (halfOut - .03);
+          const invadeGap = (part.z0 > roof.z0 && hz - hzW < part.z0 + .06)
+            || (part.z1 < roof.z1 && hz + hzW > part.z1 - .06);
+          const coube = halfAlong * 2 <= face.len - .12
+            && !invadeGap && !stairBandAt(hx, hz, hxW, hzW) && !roofAccessNear(hx, hz);
+          if (coube) solidHouse(id, { x: hx, z: hz, targetH, ry });
+          /* Muro rente nos trechos da face que a casa não ocupa (ou na face inteira, quando
+             a casa não coube). Rente à face do proxy: bala, corpo e pixel continuam
+             concordando sobre onde a parede está. */
+          for (const [a, b] of coube
+            ? [[-face.len / 2, centro - halfAlong], [centro + halfAlong, face.len / 2]]
+            : [[-face.len / 2, face.len / 2]]) {
+            const trecho = b - a;
+            if (trecho < .35) continue;
+            const meio = (a + b) / 2;
+            const mx = face.cx + face.dx * meio - face.outward[0] * .07;
+            const mz = face.cz + face.dz * meio - face.outward[1] * .07;
+            const muro = wallWithRelief(face.dx ? trecho : .14, targetH, face.dx ? .14 : trecho,
+              (roofIndex + fi) % 2 ? MAT.brick : MAT.plaster, mx, mz, roofIndex + fi);
+            roofGroup.add(muro);
+          }
+          fi++;
         }
       }
       const slab = addBox(w, .16, d, slabMaterial, x, ROOF_H - .16, z, { collide: false, bala: true });
