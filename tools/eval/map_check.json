@@ -1,5 +1,5 @@
 {
- "gerado": "2026-08-25T04:53:29.423Z",
+ "gerado": "2026-08-26T02:47:07.823Z",
  "criterios": {
   "map1": "corpo dentro de sólido: raycast do peito (1.4 m) até o chão; sólido com topo > 0.3 m acima do chão local reprova",
   "map2": "exposição: fração dos pontos andáveis a ≥ 25 m com _losClear até a cabeça (1.62 m) de quem nasce",
@@ -1359,9 +1359,9 @@
   },
   {
    "map": "lajes",
-   "celulasAlcancadas": 8621,
+   "celulasAlcancadas": 8654,
    "amostrasChao": 539,
-   "observadores": 133,
+   "observadores": 131,
    "corpoDentroDeSolido": 0,
    "submersosAcimaDoPeito": 0,
    "piorPenetracao": 0,
@@ -1487,8 +1487,8 @@
      "x": -1.9,
      "z": 32.3,
      "chao": 5.2,
-     "obsLonge": 85,
-     "obsVendo": 85,
+     "obsLonge": 83,
+     "obsVendo": 83,
      "frac": 1,
      "maiorVisada": 67.4
     },
@@ -1497,8 +1497,8 @@
      "x": -0.65,
      "z": 32.3,
      "chao": 5.2,
-     "obsLonge": 85,
-     "obsVendo": 85,
+     "obsLonge": 83,
+     "obsVendo": 83,
      "frac": 1,
      "maiorVisada": 67.4
     },
@@ -1507,8 +1507,8 @@
      "x": 0.65,
      "z": 32.3,
      "chao": 5.2,
-     "obsLonge": 84,
-     "obsVendo": 84,
+     "obsLonge": 82,
+     "obsVendo": 82,
      "frac": 1,
      "maiorVisada": 67.4
     },
@@ -1517,8 +1517,8 @@
      "x": 1.9,
      "z": 32.3,
      "chao": 5.2,
-     "obsLonge": 83,
-     "obsVendo": 83,
+     "obsLonge": 81,
+     "obsVendo": 81,
      "frac": 1,
      "maiorVisada": 67.5
     }
@@ -1864,19 +1864,19 @@
     },
     {
      "nivel": "LAJE DO VARAL",
-     "celulasAlcancadas": 567,
+     "celulasAlcancadas": 574,
      "waypointsNoNivel": 6,
      "aEstrelaChega": true
     },
     {
      "nivel": "LAJE OESTE NORTE",
-     "celulasAlcancadas": 538,
+     "celulasAlcancadas": 535,
      "waypointsNoNivel": 6,
      "aEstrelaChega": true
     },
     {
      "nivel": "LAJE LESTE NORTE",
-     "celulasAlcancadas": 526,
+     "celulasAlcancadas": 533,
      "waypointsNoNivel": 6,
      "aEstrelaChega": true
     },
@@ -1894,13 +1894,13 @@
     },
     {
      "nivel": "LAJE DO CHURRASCO",
-     "celulasAlcancadas": 1026,
+     "celulasAlcancadas": 1031,
      "waypointsNoNivel": 11,
      "aEstrelaChega": true
     },
     {
      "nivel": "LAJE DA PISCINA",
-     "celulasAlcancadas": 996,
+     "celulasAlcancadas": 1003,
      "waypointsNoNivel": 11,
      "aEstrelaChega": true
     },
@@ -1912,7 +1912,7 @@
     }
    ],
    "occluderSemMalha": [],
-   "occMedidos": 961,
+   "occMedidos": 976,
    "occPulados": 0,
    "fracSemMalha": 0.0044,
    "quadrantes": [
@@ -1921,12 +1921,12 @@
      "x0": -15.5,
      "z0": -19.5,
      "areaAndavel": 68,
-     "props": 68,
+     "props": 69,
      "waypoints": 15,
-     "densProp": 100.37,
-     "densWp": 22.14,
-     "espacamento": 1,
-     "razaoProp": 0.96,
+     "densProp": 102.13,
+     "densWp": 22.2,
+     "espacamento": 0.99,
+     "razaoProp": 0.99,
      "razaoWp": 0.9
     },
     {
@@ -1936,37 +1936,37 @@
      "areaAndavel": 51,
      "props": 72,
      "waypoints": 15,
-     "densProp": 141.35,
-     "densWp": 29.45,
+     "densProp": 140.49,
+     "densWp": 29.27,
      "espacamento": 0.84,
-     "razaoProp": 1.35,
-     "razaoWp": 1.2
+     "razaoProp": 1.36,
+     "razaoWp": 1.19
     },
     {
      "q": "2,3",
      "x0": 0,
      "z0": 19.5,
      "areaAndavel": 49,
-     "props": 43,
+     "props": 46,
      "waypoints": 72,
-     "densProp": 88.21,
+     "densProp": 94.36,
      "densWp": 147.69,
-     "espacamento": 1.06,
-     "razaoProp": 0.84,
+     "espacamento": 1.03,
+     "razaoProp": 0.91,
      "razaoWp": 5.99
     },
     {
      "q": "3,1",
      "x0": 7.8,
      "z0": -19.5,
-     "areaAndavel": 67,
+     "areaAndavel": 68,
      "props": 70,
      "waypoints": 15,
-     "densProp": 104.48,
-     "densWp": 22.39,
+     "densProp": 103.61,
+     "densWp": 22.2,
      "espacamento": 0.98,
      "razaoProp": 1,
-     "razaoWp": 0.91
+     "razaoWp": 0.9
     },
     {
      "q": "3,2",
@@ -1978,15 +1978,15 @@
      "densProp": 113.35,
      "densWp": 24.64,
      "espacamento": 0.94,
-     "razaoProp": 1.08,
+     "razaoProp": 1.09,
      "razaoWp": 1
     }
    ],
-   "medianaProp": 104.48,
+   "medianaProp": 103.61,
    "medianaWp": 24.64,
-   "piorRazaoProp": 0.84,
+   "piorRazaoProp": 0.91,
    "piorRazaoWp": 0.9,
-   "piorEspacamento": 1.06,
+   "piorEspacamento": 1.03,
    "bordasSemGuarda": [],
    "rotasSpawnBandeira": [
     {

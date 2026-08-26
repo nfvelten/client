@@ -70,7 +70,11 @@ const PLANKS = Object.freeze([
   { id: 'CS-SE', a: [2.5, 28.5], b: [7.4, 27] },
   { id: 'NW-CN', a: [-7.4, -27.2], b: [-2.5, -28.5] },
   { id: 'CN-NE', a: [2.5, -28.5], b: [7.4, -27.2] },
-  { id: 'WN-MN', a: [-7.4, -11], b: [-5.9, -11] },
+  /* z = −10,2 e não −11: em −11 a ponta oeste caía no VÃO entre as duas partes da WN
+     (part0 termina em −11,9, part1 começa em −10,7), e o A* ligava essa ponta ao miolo da
+     laje atravessando o guarda do vão — aresta que o corpo não anda (LB1). Em −10,2 a ponta
+     pousa dentro da part1 e a tábua continua tocando MN (z −13,5..−8,5) e WN. */
+  { id: 'WN-MN', a: [-7.4, -10.2], b: [-5.9, -10.2] },
   { id: 'MS-SE', a: [3.8, 25], b: [7.4, 25] },
   { id: 'CS-MS', a: [3, 28.5], b: [3, 27] },
 ]);
@@ -256,8 +260,10 @@ export function buildLajes(scene, T) {
     const hz = Math.abs(-hxL * sn) + Math.abs(hzL * cs);
     const x = options.x, z = options.z;   // batchHouse centraliza a Box3 exatamente no alvo
     const y = options.y || 0;
+    /* `casa` marca o colisor como CASA DO KIT: é o que deixa a régua de escala contar
+       barraco (e só barraco) sem adivinhar pela caixa. */
     colliders.push({ minX: x - hx, maxX: x + hx, minY: y, maxY: y + options.targetH,
-      minZ: z - hz, maxZ: z + hz });
+      minZ: z - hz, maxZ: z + hz, casa: id, casaH: options.targetH });
     /* Sem proxy de bala: o occluder da casa é a PRÓPRIA malha instanciada (empurrada em
        build()). Caixa sólida divergia da silhueta real nos recuos e pergolados do kit —
        era o "bala=9 m, visível=26 m" da régua. */
@@ -725,6 +731,51 @@ export function buildLajes(scene, T) {
     }
   }
 
+  /* CORREDOR DE ACESSO: da boca (ponta de tábua, topo de escada) até o miolo da laje que ela
+     serve. A abertura na platibanda era medida em PLANTA, sobre a linha da borda — e quem
+     sai da boca não anda pela borda, anda para DENTRO, na diagonal. Na tábua CN-NE a
+     diagonal batia no guarda do patamar da DESCIDA NORTE a 0,6 m de dentro da abertura, e o
+     bot encostava ali a partida inteira (medido: preso em (−6,97 / −26,67) de t = 6 s a
+     t = 34 s — o "os bots ficam só no respawn em cima" do dono, em número).
+     Alternativa recusada: carpetar a laje de waypoints. Resolvia o bot e derrubava LS2, LV1
+     e CTF2 — com célula em qualquer x da laje a rota mais curta desliza ~2 m, e o
+     `rotasSeparadas`, que apaga faixa em PLANTA e não em 3D, passava a engolir o beco que
+     corria por baixo. O defeito era a porta, então o conserto é a porta.
+     Sai das CONSTANTES do módulo (PLANKS/STAIR_CONFIGS) para poder valer também para os
+     guardas de patamar, que nascem antes de `stairs` existir. Cobrado pela LB1. */
+  const R_CORREDOR = .58;   // corpo de 0,38 m + 0,20 m de folga para não sair raspando
+  const BOCAS = [...PLANKS, ...INTERNAL_PLANKS].flatMap((plank) => [plank.a, plank.b])
+    .concat(STAIR_CONFIGS.map((config) => [config.side * 7.4, config.bottomZ]));
+  const corredores = BOCAS.flatMap(([px, pz]) => ROOF_PARTS
+    .filter((part) => !part.tunnel && px >= part.x0 - .45 && px <= part.x1 + .45
+      && pz >= part.z0 - .45 && pz <= part.z1 + .45)
+    .map((part) => ({ ax: px, az: pz, bx: (part.x0 + part.x1) / 2, bz: (part.z0 + part.z1) / 2 })));
+  const noCorredor = (x, z) => corredores.some(({ ax, az, bx, bz }) => {
+    const dx = bx - ax, dz = bz - az, len2 = dx * dx + dz * dz;
+    const t = len2 < 1e-6 ? 0 : Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / len2));
+    return Math.hypot(x - (ax + dx * t), z - (az + dz * t)) < R_CORREDOR;
+  });
+  const sobreLaje = (x, z) => ROOF_PARTS.some((part) => !part.tunnel && x >= part.x0 - .05
+    && x <= part.x1 + .05 && z >= part.z0 - .05 && z <= part.z1 + .05);
+  /* O guarda só pode abrir onde há laje DOS DOIS LADOS dele. Testar o ponto do próprio guarda
+     não basta: na borda sul da SE (z = 27) o guarda está sobre a laje e o vão de 5,2 m começa
+     0,1 m adiante — a primeira versão abriu ali e a MAP6 pegou na hora (2 bordas alcançáveis
+     com queda de 5,2 m sem guarda). Trocar bot preso por jogador despencando não é conserto. */
+  const LADO = .5;   // meio passo do corpo: o suficiente para a borda do vão aparecer
+  const lajeDosDoisLados = (x, z, alongX) => sobreLaje(x + (alongX ? 0 : LADO), z + (alongX ? LADO : 0))
+    && sobreLaje(x - (alongX ? 0 : LADO), z - (alongX ? LADO : 0));
+  /* Guarda em fatias: abre só o pedaço que cai no corredor E tem laje dos dois lados. */
+  const guardaFatiado = (x0, x1, z, alongX, mat, altura = .62) => {
+    const passo = .66, comprimento = Math.abs(x1 - x0), n = Math.max(1, Math.round(comprimento / passo));
+    for (let i = 0; i < n; i++) {
+      const a = x0 + (x1 - x0) * (i / n), b = x0 + (x1 - x0) * ((i + 1) / n);
+      const meio = (a + b) / 2;
+      const [mx, mz] = alongX ? [meio, z] : [z, meio];
+      if (lajeDosDoisLados(mx, mz, alongX) && noCorredor(mx, mz)) continue;
+      addBox(alongX ? Math.abs(b - a) : .14, altura, alongX ? .14 : Math.abs(b - a), mat, mx, ROOF_H, mz);
+    }
+  };
+
   const plankAt = (x, z) => {
     for (const p of plankSurfaces) {
       const lx = (x - p.cx) * p.cos - (z - p.cz) * p.sin;
@@ -819,11 +870,12 @@ export function buildLajes(scene, T) {
        fica aberta só no trecho do lance; o restante da borda e a borda oposta levam guarda. */
     const chegadaZ = config.bottomZ + config.dirZ * width / 2;
     const opostaZ = config.bottomZ - config.dirZ * width / 2;
-    addBox(Math.abs(topX - outerX) + width, .62, .14, MAT.brick, topMidX, ROOF_H, opostaZ);
+    guardaFatiado(topMidX - (Math.abs(topX - outerX) + width) / 2, topMidX + (Math.abs(topX - outerX) + width) / 2,
+      opostaZ, true, MAT.brick);
     const livreAte = outerX + Math.sign(topX - outerX) * width / 2;
     const bordaAte = topX + Math.sign(topX - outerX) * width / 2;
     const gA = Math.min(livreAte, bordaAte), gB = Math.max(livreAte, bordaAte);
-    if (gB - gA > .3) addBox(gB - gA, .62, .14, MAT.brick, (gA + gB) / 2, ROOF_H, chegadaZ);
+    if (gB - gA > .3) guardaFatiado(gA, gB, chegadaZ, true, MAT.brick);
     /* Borda lateral do patamar de topo que olha o poço do primeiro lance (AT1/MAP6):
         sem ela, quem chega pela laje despenca 5 m na valeta entre os lances. */
     addBox(.14, .62, width, MAT.brick, outerX - config.side * width / 2, ROOF_H, config.bottomZ);
@@ -985,6 +1037,13 @@ export function buildLajes(scene, T) {
   const roofAccessOnHorizontal = (x, z) => accessPoints.some(([px, pz]) => Math.abs(pz - z) < .1 && Math.abs(px - x) < .9);
   const roofAccessOnVertical = (x, z) => accessPoints.some(([px, pz]) => Math.abs(px - x) < .1 && Math.abs(pz - z) < .9);
   const guard = (x, z, alongX, length, index) => {
+    /* Testa as duas PONTAS e o meio do trecho: o guarda-corpo tem 0,82 m e um teste só no
+       centro deixa passar meio trecho dentro do corredor. */
+    const meia = length / 2;
+    for (const t of [-1, 0, 1]) {
+      const px = x + (alongX ? meia * t : 0), pz = z + (alongX ? 0 : meia * t);
+      if (noCorredor(px, pz) && lajeDosDoisLados(px, pz, alongX)) return;
+    }
     const key = `${x.toFixed(2)}:${z.toFixed(2)}:${alongX ? 'x' : 'z'}`;
     if (guardKeys.has(key)) return; guardKeys.add(key);
     const spawnFront = Math.abs(Math.abs(z) - 28.5) < .08;
@@ -1259,73 +1318,103 @@ export function buildLajes(scene, T) {
   for (let i = 1; i < MAIN_BECO.length; i++) line(MAIN_BECO[i - 1], MAIN_BECO[i]);
   for (const branch of BRANCHES) line(branch[0], branch[1]);
 
-  /* MALHA DE TÉRREO: o chão sempre foi andável fora do beco, mas só o beco tinha nós — sem
-     nó não há rota, e o mapa só existia por cima. Ver docs/maps/LAJES-PRACA.md */
-  const terreoLivre = (x, z, r = .45) => {
-    if (groundHeightAt(x, z, 0) > .55) return false;
+  /* MALHA ANDÁVEL, UMA POR CAMADA. O térreo ganhou grade na rodada da praça (o mapa só
+     existia por cima porque só o beco tinha nós). A LAJE continuava com UM nó por parte de
+     telhado — o centro —, e era isso que prendia o bot no respawn de cima: ele saía da
+     tábua e mirava o centro da laje vizinha em linha reta, a reta raspava a platibanda de
+     0,38 m na quina da abertura e ele encostava ali a partida inteira (medido: 21/21 bots
+     com ymin = 5,20 m e 0% de amostra no térreo, scratchpad/sonda-bots-lajes.mjs).
+     Grade nas DUAS camadas: o A* passa a andar de célula em célula também em cima, e a
+     descida vira um caminho como qualquer outro. Ver docs/maps/LAJES-BOTS.md */
+  const livreEm = (y, x, z, r = .45) => {
     for (const c of colliders) {
-      if (c.minY > 1.4 || c.maxY < .25) continue;
-      if (x + r > c.minX && x - r < c.maxX && z + r > c.minZ && z - r < c.maxZ) return false;
+      if (c.minY > y + 1.4 || c.maxY < y + .25) continue;
+      if (x + r > c.minX && x - r < c.maxX && z + r > c.minZ && z - r < c.maxZ) {
+        /* Colisor GIRADO (guarda-corpo de tábua diagonal) tem AABB muito maior que a peça:
+           o corrimão de 0,07 m da tábua CN-NE ocupa uma AABB de 6,0 × 1,7 m. Testar pela
+           AABB apagava a laje inteira em volta de toda tábua diagonal — a grade de cima
+           nascia sem célula justo na boca de acesso. Mesma matemática do `_collideRot` do
+           game.js: o teste real é na caixa local. */
+        if (!c.ry) return false;
+        const wx = x - c.cx, wz = z - c.cz;
+        const lx = wx * c.cos - wz * c.sin, lz = wx * c.sin + wz * c.cos;
+        const ex = Math.max(0, Math.abs(lx) - c.hx), ez = Math.max(0, Math.abs(lz) - c.hz);
+        if (ex * ex + ez * ez < r * r) return false;
+      }
     }
     return true;
   };
+  const terreoLivre = (x, z, r = .45) => groundHeightAt(x, z, 0) <= .55 && livreEm(0, x, z, r);
   /* Vão INTEIRO, não o ponto médio: com nós a 2,0 m o médio cai fora de um muro de 0,26 m e
-     o grafo jura passagem onde há parede. Cobrado pela LV6. */
-  const vaoLivre = (ax, az, bx, bz) => {
+     o grafo jura passagem onde há parede. Cobrado pela LV6 (térreo) e pela LB2 (toda camada). */
+  const vaoLivreEm = (livre, ax, az, bx, bz, r) => {
     const d = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.ceil(d / .35));
     for (let s = 1; s < n; s++) {
       const t = s / n;
-      if (!terreoLivre(ax + (bx - ax) * t, az + (bz - az) * t)) return false;
+      if (!livre(ax + (bx - ax) * t, az + (bz - az) * t, r)) return false;
     }
     return true;
   };
+  const vaoLivre = (ax, az, bx, bz) => vaoLivreEm(terreoLivre, ax, az, bx, bz);
   const GRID = 2.0;
   const gx0 = -HALF_X + 1.3, gz0 = MIN_Z + 1.3;
   const gnx = Math.floor((HALF_X - 1.3 - gx0) / GRID) + 1, gnz = Math.floor((MAX_Z - 1.3 - gz0) / GRID) + 1;
-  const malha = new Int32Array(gnx * gnz).fill(-1);
-  for (let i = 0; i < gnx; i++) for (let k = 0; k < gnz; k++) {
-    const x = gx0 + i * GRID, z = gz0 + k * GRID;
-    if (Math.abs(x) > 13.3 && Math.abs(z) < 30) continue;   // fundo de quintal: andável, não é rota
-    if (!terreoLivre(x, z)) continue;
-    const id = addNode(x, z, groundHeightAt(x, z, 0));
-    /* `malha` distingue o nó de NAVEGAÇÃO do nó da espinha AUTORADA (beco/ramal). A
-       lajes-spatial mede a largura do beco escolhendo trecho reto por GRAU do nó, e a malha
-       muda esse grau — sem a marca ela passaria a medir a praça achando que é beco (LS4). */
-    nodes[id].malha = true;
-    malha[i * gnz + k] = id;
-  }
-  for (let i = 0; i < gnx; i++) for (let k = 0; k < gnz; k++) {
-    const id = malha[i * gnz + k];
-    if (id < 0) continue;
-    const x = gx0 + i * GRID, z = gz0 + k * GRID;
-    /* Diagonal só nasce com os DOIS vizinhos ortogonais livres, senão corta quina de muro.
-       Sem diagonal o caminho anda em escada e infla ~10% (a LV1 mede comprimento). */
-    for (const [di, dk] of [[1, 0], [0, 1], [1, 1], [1, -1]]) {
-      const j = i + di, l = k + dk;
-      if (j < 0 || j >= gnx || l < 0 || l >= gnz) continue;
-      const outro = malha[j * gnz + l];
-      if (outro < 0) continue;
-      if (!vaoLivre(x, z, x + di * GRID, z + dk * GRID)) continue;
-      if (di && dk && (malha[j * gnz + k] < 0 || malha[i * gnz + l] < 0)) continue;
-      link(id, outro);
+  const emCelula = (i, k) => [gx0 + i * GRID, gz0 + k * GRID];
+  /* Uma grade por camada, mesma matemática. `pula` é o que cada camada não quer como rota. */
+  const construirMalha = ({ y, livre, vao, pula }) => {
+    const grade = new Int32Array(gnx * gnz).fill(-1);
+    for (let i = 0; i < gnx; i++) for (let k = 0; k < gnz; k++) {
+      const [x, z] = emCelula(i, k);
+      if (pula && pula(x, z)) continue;
+      if (!livre(x, z)) continue;
+      const id = addNode(x, z, y);
+      /* `malha` distingue o nó de NAVEGAÇÃO do nó da espinha AUTORADA (beco/ramal). A
+         lajes-spatial mede a largura do beco escolhendo trecho reto por GRAU do nó, e a malha
+         muda esse grau — sem a marca ela passaria a medir a praça achando que é beco (LS4). */
+      nodes[id].malha = true;
+      grade[i * gnz + k] = id;
     }
-  }
+    for (let i = 0; i < gnx; i++) for (let k = 0; k < gnz; k++) {
+      const id = grade[i * gnz + k];
+      if (id < 0) continue;
+      const [x, z] = emCelula(i, k);
+      /* Diagonal só nasce com os DOIS vizinhos ortogonais livres, senão corta quina de muro.
+         Sem diagonal o caminho anda em escada e infla ~10% (a LV1 mede comprimento). */
+      for (const [di, dk] of [[1, 0], [0, 1], [1, 1], [1, -1]]) {
+        const j = i + di, l = k + dk;
+        if (j < 0 || j >= gnx || l < 0 || l >= gnz) continue;
+        const outro = grade[j * gnz + l];
+        if (outro < 0) continue;
+        if (!vao(x, z, x + di * GRID, z + dk * GRID)) continue;
+        if (di && dk && (grade[j * gnz + k] < 0 || grade[i * gnz + l] < 0)) continue;
+        link(id, outro);
+      }
+    }
+    return grade;
+  };
+  const malha = construirMalha({ y: 0, livre: terreoLivre, vao: vaoLivre,
+    // fundo de quintal: andável, não é rota
+    pula: (x, z) => Math.abs(x) > 13.3 && Math.abs(z) < 30 });
+  void emCelula;
   /* Costura com a linha do beco: nó de beco encosta na malha só quando o caminho entre os
      dois está livre — é o que impede a aresta que fura o muro do beco. */
-  for (let n = 0; n < nodes.length; n++) {
-    if (nodes[n].y > .6) continue;
-    const i0 = Math.round((nodes[n].x - gx0) / GRID), k0 = Math.round((nodes[n].z - gz0) / GRID);
-    for (let di = -1; di <= 1; di++) for (let dk = -1; dk <= 1; dk++) {
-      const i = i0 + di, k = k0 + dk;
-      if (i < 0 || i >= gnx || k < 0 || k >= gnz) continue;
-      const outro = malha[i * gnz + k];
-      if (outro < 0 || outro === n) continue;
-      const bx = gx0 + i * GRID, bz = gz0 + k * GRID;
-      if (Math.hypot(bx - nodes[n].x, bz - nodes[n].z) > GRID * 1.5) continue;
-      if (!vaoLivre(nodes[n].x, nodes[n].z, bx, bz)) continue;
-      link(n, outro);
+  const costurar = (grade, vao, alturaDoNo) => {
+    for (let n = 0; n < nodes.length; n++) {
+      if (!alturaDoNo(nodes[n]) || nodes[n].malha) continue;
+      const i0 = Math.round((nodes[n].x - gx0) / GRID), k0 = Math.round((nodes[n].z - gz0) / GRID);
+      for (let di = -1; di <= 1; di++) for (let dk = -1; dk <= 1; dk++) {
+        const i = i0 + di, k = k0 + dk;
+        if (i < 0 || i >= gnx || k < 0 || k >= gnz) continue;
+        const outro = grade[i * gnz + k];
+        if (outro < 0 || outro === n) continue;
+        const [bx, bz] = emCelula(i, k);
+        if (Math.hypot(bx - nodes[n].x, bz - nodes[n].z) > GRID * 1.5) continue;
+        if (!vao(nodes[n].x, nodes[n].z, bx, bz)) continue;
+        link(n, outro);
+      }
     }
-  }
+  };
+  costurar(malha, vaoLivre, (n) => n.y <= .6);
 
   const roofPartNodes = new Map();
   for (const roof of ROOFS) roofPartNodes.set(roof.name, ROOF_PARTS.filter((part) => part.name === roof.name)
@@ -1378,10 +1467,19 @@ export function buildLajes(scene, T) {
     link(topNode, alvoLaje);
   }
 
-  function nearestWaypoint(x, z) {
+  /* NÓ MAIS PRÓXIMO EM 3D, não em planta. O lajes tem duas camadas empilhadas: a projeção
+     em XZ de um bot na laje cai em cima de um nó de BECO, e era esse nó que o A* recebia
+     como origem. O bot então "seguia" uma rota de térreo andando pelo telhado — nunca
+     encostava numa escada, e é isso que o dono viu como "os bots ficam só no respawn de
+     cima". O peso 3× em y não é estético: 5,2 m de desnível passam a custar 15,6 m de
+     planta, mais que a maior laje do mapa, então camada errada nunca ganha de camada certa.
+     `yRef` é opcional — mapa de uma camada só continua chamando com dois argumentos. */
+  const PESO_Y = 3;
+  function nearestWaypoint(x, z, yRef) {
     let best = 0, distance = Infinity;
     for (let i = 0; i < nodes.length; i++) {
-      const d = (nodes[i].x - x) ** 2 + (nodes[i].z - z) ** 2;
+      let d = (nodes[i].x - x) ** 2 + (nodes[i].z - z) ** 2;
+      if (yRef != null) d += ((nodes[i].y - yRef) * PESO_Y) ** 2;
       if (d < distance) { distance = d; best = i; }
     }
     return best;
@@ -1403,6 +1501,10 @@ export function buildLajes(scene, T) {
     const path = [to]; for (let current = previous[to]; current >= 0; current = previous[current]) path.unshift(current); return path;
   }
 
+  /* AS QUATRO VAGAS FICAM NA LAJE. Tentativa medida em 26/08: mover duas vagas por time
+     para os quintais laterais levava o bot ao térreo (0,0% → 7,3% das amostras), e reprovava
+     a LS1 — "os dois times nascem nas lajes" é contrato do mapa, não detalhe de ajuste.
+     Nascer em cima fica; quem tem que levar o bot para baixo é a rota, não o spawn. */
   const spawns = {
     E: [-1.9, -.65, .65, 1.9].map((x) => ({ x, z: -32.3, yaw: 0 })),
     B: [-1.9, -.65, .65, 1.9].map((x) => ({ x, z: 32.3, yaw: Math.PI })),

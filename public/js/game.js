@@ -4631,13 +4631,13 @@ export class Game {
       if (BOT_MOVE2) {
         // mesmo tratamento do roam: nó de partida FISICAMENTE alcançável + A* que pula os
         // hops que o bot já provou não caber (senão ele serrilha a quina pra sempre).
-        let from = W.nearestWaypoint(b.pos.x, b.pos.z);
+        let from = W.nearestWaypoint(b.pos.x, b.pos.z, b.pos.y);
         if (!this._walkReach(b, W.waypoints.nodes[from])) {
           const cands = W.waypoints.nodes.map((n, i) => ({ i, d: (n.x - b.pos.x) ** 2 + (n.z - b.pos.z) ** 2 })).sort((a, c) => a.d - c.d);
           for (let k = 0; k < Math.min(6, cands.length); k++) if (this._walkReach(b, W.waypoints.nodes[cands[k].i])) { from = cands[k].i; break; }
         }
-        b.path = this._findPathLocal(W, from, W.nearestWaypoint(pt.x, pt.z), b._banNodes);
-      } else b.path = W.findPath(W.nearestWaypoint(b.pos.x, b.pos.z), W.nearestWaypoint(pt.x, pt.z));
+        b.path = this._findPathLocal(W, from, W.nearestWaypoint(pt.x, pt.z, pt.y), b._banNodes);
+      } else b.path = W.findPath(W.nearestWaypoint(b.pos.x, b.pos.z, b.pos.y), W.nearestWaypoint(pt.x, pt.z, pt.y));
       b.pathIdx = 1;
     }
     if (BOT_MOVE2 && b.path) {
@@ -6390,7 +6390,7 @@ export class Game {
         // path[0] e ficava serrilhando a quina do muro ("andando pro lado e pro outro",
         // latFlips 68-94/min medido). Agora escolhe o nó mais próximo FISICAMENTE
         // ALCANÇÁVEL: simula a caminhada reta com _collide (a mesma física do bot).
-        let from = W.nearestWaypoint(b.pos.x, b.pos.z);
+        let from = W.nearestWaypoint(b.pos.x, b.pos.z, b.pos.y);
         let pocket = false;
         if (!this._walkReach(b, W.waypoints.nodes[from])) {
           let found = -1;
