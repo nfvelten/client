@@ -34,7 +34,7 @@
    passava antes do conserto não prova conserto nenhum, e cláusula que não morde é pior que
    cláusula ausente — ela dá por resolvido o que continua aberto. Com o combate LIGADO, que é
    como o dono joga, o número é 0,0% antes e 1,4% depois: melhora, mas o que manda ali é o
-   BUG-60 abaixo, não o grafo. Os dois números ficam IMPRESSOS em toda execução, sem
+   BUG-75 abaixo, não o grafo. Os dois números ficam IMPRESSOS em toda execução, sem
    cláusula, até que alguém ataque a causa de verdade.
 
    O QUE ELA NÃO COBRA, e por que isso está escrito aqui e não escondido:
@@ -48,7 +48,7 @@
      existe (game.js, ramo `else` do roam). O bot não precisa andar para atirar, então não
      anda. Consertar isso é redesenhar a visada do telhado ou mexer na IA de combate de
      TODOS os mapas — nenhuma das duas cabe nesta frente. O número fica IMPRESSO abaixo em
-     toda execução, para não passar por resolvido. Ver KNOWN-BUGS (BUG-60).
+     toda execução, para não passar por resolvido. Ver KNOWN-BUGS (BUG-75).
 
    REPRODUZ:  node tools/eval/lajes-bots-check.mjs
    MUTAÇÕES (cada uma morde a sua cláusula):
@@ -194,7 +194,7 @@ function simular({ combate }) {
     raio: raio / botsTot, medianaAlvo: distAlvo.length ? distAlvo[distAlvo.length >> 1] : NaN };
 }
 
-/* Os DOIS lados do mesmo mapa, impressos lado a lado (BUG-60). Sem combate mede-se o que
+/* Os DOIS lados do mesmo mapa, impressos lado a lado (BUG-75). Sem combate mede-se o que
    esta frente constrói — grafo, rota, escada. Com combate mede-se o que o dono vê. A
    distância entre os dois números É o defeito em aberto, e ele fica visível em toda
    execução para não passar por resolvido. */
@@ -206,7 +206,7 @@ const real = simular({ combate: true });
 console.log(`· MEDIDA partida real (combate ligado): térreo ${(100 * real.fracTerreo).toFixed(1)}%`
   + ` · escada ${(100 * real.fracEscada).toFixed(2)}% · ${real.desceram}/${real.botsTot} bots no chão`
   + ` · raio ${real.raio.toFixed(1)} m (escadão 23,2 · piscinão 23,0 · ferro velho 38,5)`
-  + ` · engajamento mediano ${real.medianaAlvo.toFixed(1)} m (escadão 19,0) — BUG-60, SEM CLÁUSULA`);
+  + ` · engajamento mediano ${real.medianaAlvo.toFixed(1)} m (escadão 19,0) — BUG-75, SEM CLÁUSULA`);
 
 const falhas = [lb1, lb2].filter((ok) => !ok).length;
 if (falhas) { console.error(`LAJES-BOTS FALHA: ${falhas}/2`); process.exitCode = 1; }

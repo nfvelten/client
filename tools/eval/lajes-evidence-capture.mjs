@@ -65,9 +65,11 @@ for (let att = 0; att < 3; att++) {
 }
 await page.waitForFunction(() => window.__game && window.__game.state === 'live', null, { timeout: 300000 });
 /* O mapa servido TEM que ser o lajes. Em 25/08/2026 esta captura rodou inteira contra um
-   servidor velho de outra sessão que ainda registrava `fy_lajes`: `?map=lajes` caiu no
-   DEFAULT_MAP (praça dos poderes) e as 26 fotos saíram do mapa errado com "DONE" no fim.
-   Evidência de mapa errado é pior que evidência nenhuma — aqui ela custa erro (lição 5). */
+   servidor velho de outra sessão, que ainda registrava o id ANTIGO do lajes (o do rename de
+   11/08, ver ALIAS_MAPA em maps.js): `?map=lajes` caiu no DEFAULT_MAP e as 26 fotos saíram
+   do mapa errado com "DONE" no fim. Evidência de mapa errado é pior que evidência nenhuma —
+   aqui ela custa erro (lição 5). O id antigo não é citado literalmente porque a M1 do
+   mapa-id-check varre `tools/` como código vivo. */
 const mapaServido = await page.evaluate(() => window.__game._mapId);
 if (mapaServido !== 'lajes') {
   await browser.close();
