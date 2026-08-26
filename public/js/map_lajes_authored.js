@@ -3,7 +3,7 @@ import { placeProp, PropBatch } from './mapprops.js';
 import { makeAerialFog } from './bloom.js';
 import { decalIds } from './map_decals.js';
 import { grafitar } from './graffiti_pass.js';
-import { createFavelaAmbience, FAVELA_AMBIENCE_ASSETS } from './ambientlife.js';
+import { createFavelaAmbience, attachPipaSky, FAVELA_AMBIENCE_ASSETS, PIPA_ASSETS } from './ambientlife.js';
 import { AMB_LOOPS } from './soundscape.js';
 
 const QP = new URLSearchParams(typeof location !== 'undefined' ? location.search : '');
@@ -18,7 +18,8 @@ export const LAJES_LOOPS = Object.freeze({
   beco: 'espinha sinuosa inferior com três ramais e retornos pelas escadas',
   laje: 'duas travessias superiores independentes ligadas por tábuas ancoradas',
 });
-export const LAJES_AMBIENCE = FAVELA_AMBIENCE_ASSETS;
+/* + pipa: só o lajes baixa o GLB da pipa (ambientlife.js, região PIPA NO CÉU) */
+export const LAJES_AMBIENCE = Object.freeze([...FAVELA_AMBIENCE_ASSETS, ...PIPA_ASSETS]);
 export const LAJES_PROPS = [...LAJES_AUTHORED_ASSETS,
   'moto_cg', 'stall', 'dumpster', 'pilha_pneus', 'botijao_gas'];
 
@@ -1203,25 +1204,10 @@ export function buildLajes(scene, T) {
   for (const [x, z] of [[-13.4, -10], [13.4, -2], [-13.4, 17], [13.4, 20]])
     addWire([x < 0 ? -5.8 : 5.7, 9.3, z - 2], [x, 8.4, z], .7, 0);
 
-  const kiteMaterials = [MAT.kiteRed, MAT.kiteBlue, MAT.kiteYellow];
-  const addKite = (x, y, z, scale, index) => {
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute([
-      0, scale, 0, -scale * .72, 0, 0, 0, -scale * 1.08, 0,
-      0, scale, 0, 0, -scale * 1.08, 0, scale * .72, 0, 0,
-    ], 3)); geometry.computeVertexNormals();
-    const kite = new THREE.Mesh(geometry, kiteMaterials[index % kiteMaterials.length]);
-    kite.position.set(x, y, z); kite.rotation.set(.08 * (index % 3), .35 * index, -.12 + .04 * index);
-    kite.userData.skyLife = 'pipa'; root.add(kite);
-    const tailCurve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(x, y - scale, z), new THREE.Vector3(x + .3, y - scale * 2.1, z + .15),
-      new THREE.Vector3(x - .15, y - scale * 3.2, z + .25),
-    ]);
-    const tail = new THREE.Mesh(new THREE.TubeGeometry(tailCurve, 8, .012, 4), MAT.woodDark); root.add(tail);
-  };
-  const kites = [[-15, 15, -30], [-8, 18, -20], [2, 16, -25], [11, 20, -14], [17, 17, -4],
-    [-17, 19, 7], [-9, 14, 15], [1, 21, 7], [8, 17, 21], [15, 22, 29], [-3, 15, 34], [5, 19, 37]];
-  kites.forEach((kite, i) => addKite(kite[0], kite[1], kite[2], .42 + (i % 3) * .1, i));
+  /* PIPAS: saíram daqui. Eram 12 losangos de BufferGeometry PARADOS entre 14 e 22 m, com
+     rotação fixa por índice — "pipas nao voam" (dono, 26/08/2026). Agora são pipas de
+     verdade (GLB Mint) presas numa linha, com voo procedural, criadas junto da ambiência
+     no fim deste arquivo. Ver a região PIPA NO CÉU em ambientlife.js. */
   for (const [x, z] of [[-8.7, 20], [2, -30]]) {
     const reel = new THREE.Mesh(new THREE.CylinderGeometry(.18, .18, .34, 16), MAT.wood);
     reel.rotation.z = Math.PI / 2; reel.position.set(x, ROOF_H + .22, z); reel.userData.rooftopUse = 'carretel'; root.add(reel);
@@ -1557,7 +1543,10 @@ export function buildLajes(scene, T) {
       { mode: 'ground', pos: [10.9, ROOF_H, -2.2], phase: 5.3 },
       { mode: 'ground', pos: [1.6, ROOF_H, 30.5], phase: 6.1 },
       /* Pombo de PRAÇA, no chão: junto da mesa de bar e do banco, não na laje. */
-      { mode: 'ground', pos: [-4.6, 0, 6.4], phase: 1.8 },
+      /* z 6,4 → 4,0: em 6,4 a pomba nascia DENTRO da mesa de bar da praça (colisor
+         x −6,69..−3,96 / z 4,90..6,85) e a AR3 do ambience-registry reprovava o mapa
+         inteiro. Agora ela fica ao lado da mesa, que é onde pomba de praça fica mesmo. */
+      { mode: 'ground', pos: [-5.7, 0, 4.0], phase: 1.8 },
       { mode: 'ground', pos: [2.9, 0, -5.8], phase: 3.7 },
     ],
     /* Caramelo do circuito inferior: trecho do beco [-2,10]→[-2,22], verificado livre
@@ -1568,6 +1557,15 @@ export function buildLajes(scene, T) {
     /* Gato de telhado (BUG-57): ronda a laje do churrasco, parte sul [21.2,27] */
     cats: [{ pos: [-11.5, ROOF_H, 22.2], to: [-9.3, ROOF_H, 24.5], phase: 1.2 }],
   });
+  /* TRÊS pipas, âncoras em pontos distintos do mapa (laje norte, praça, laje sul) e alturas
+     escalonadas de 26 a 38 m: de qualquer canto do mapa dá para ver pelo menos uma abanando,
+     e nenhuma some atrás da outra. Âncora na LAJE (5,2 m) porque é de lá que se solta pipa
+     na comunidade; a do meio sai da praça, que é o chão novo desta rodada. */
+  attachPipaSky(ambience, root, [
+    { ancora: [-3.2, ROOF_H, -30.5], alt: 26, raio: 9.5, fase: .4, giro: .62 },
+    { ancora: [1.8, 0, 3.4], alt: 33, raio: 12.5, fase: 2.3, giro: .48 },
+    { ancora: [10.4, ROOF_H, 24.6], alt: 38, raio: 15, fase: 4.1, giro: .55 },
+  ]);
 
   return {
     root, colliders, occluders, decalSolids: [root], groundHeightAt, spawns, sun, hemi,

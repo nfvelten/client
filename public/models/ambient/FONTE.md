@@ -68,6 +68,16 @@ de malha skinned.
   `barata-urbana`. (Primeira geração bloqueada pela moderação do Mint;
   regenerada com prompt de "garden beetle".)
 
+- `pipa.glb` — “Red Yellow Diamond Kite”, Mint text-to-3D, 26/08/2026 (kit de
+  revisão r2 do lajes, `kits-mint.json` item `lajes.pipa`). Chat:
+  <https://mint.gg/chat/ph724bnemdzzbkp3va6bxdf5v98d6rrb>. Registro `pipa-lajes`.
+  4532 triângulos, WebP 1024, bbox 0,553 × 0,998 × 0,361 m. SEM clipe de
+  animação, e não precisa de um: pipa não tem parte móvel — o que se move é a
+  pipa inteira contra a linha esticada. O voo é procedural (`attachPipaSky`, em
+  `ambientlife.js`, região “PIPA NO CÉU”). Call-site: lajes, três pipas com
+  âncoras distintas entre 26 e 38 m. Fica FORA de `FAVELA_AMBIENCE_ASSETS`:
+  pipa dentro da UPA ou da Loja H seria pipa dentro do prédio.
+
 Pipeline reproduzível: `node tools/optimize-ambient-fauna.mjs` (filtre por
 `quaternius_cat`/`quaternius_chicken`/`quaternius_cow` para regenerar as
 espécies v2.1). Referências de silhueta/procedência de medidas:
