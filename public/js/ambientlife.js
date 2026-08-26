@@ -19,8 +19,8 @@ const ASSETS = Object.freeze({
   armadillo: 'models/ambient/tatu_campo.glb',
   cockroach: 'models/ambient/barata_urbana.glb',
   parrot: 'models/ambient/papagaio_poleiro.glb',
-  /* pipa: só o lajes baixa (ver PIPA NO CÉU, no fim do arquivo) — por isso fica FORA de
-     FAVELA_AMBIENCE_ASSETS, que é o que todo mapa de favela pré-carrega. */
+  /* pipa fica FORA de FAVELA_AMBIENCE_ASSETS (só o lajes baixa): pipa dentro
+     da UPA seria pipa dentro do prédio. docs/maps/LAJES-PIPA.md */
   pipa: 'models/ambient/pipa.glb',
 });
 export const FAVELA_AMBIENCE_ASSETS = Object.freeze(Object.keys(ASSETS).filter((id) => id !== 'pipa'));
@@ -563,43 +563,19 @@ export function placeFauna(id, { x = 0, y = 0, z = 0, ry = 0, targetLen, submerg
   return root;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════════════
-   PIPA NO CÉU — região APPEND-ONLY (dono, 26/08/2026: "pipas nao voam").
-
-   O que havia: `addKite` no map_lajes_authored desenhava losangos de PlaneGeometry parados
-   no ar, com rotação fixa por índice. Pipa parada não é pipa — é enfeite pendurado, e foi
-   exatamente assim que o dono leu.
-
-   O que existe agora: pipa de VERDADE (GLB Mint, 4,5k tris) presa numa linha, com voo
-   PROCEDURAL. Não há clipe de animação no arquivo e não precisa haver: pipa não tem parte
-   móvel — o que se move é a pipa inteira contra a linha esticada, e isso é cinemática, não
-   deformação de malha. O modelo do voo é o da pipa real de laje:
-
-     · a linha tem comprimento FIXO, então a pipa anda sobre uma casca esférica em volta do
-       ponto onde alguém a segura, e não em linha reta pelo céu;
-     · o ABANAR é a soma de duas oscilações de períodos primos entre si (≈ 7 s de rajada
-       larga + ≈ 1,7 s de tremida) — uma senoide só devolve o balanço de pêndulo de
-       brinquedo que o dono já reprovou noutro asset;
-     · a pipa aponta para onde VAI e inclina para o lado da guinada (a barriga vira contra o
-       vento). Yaw/pitch/roll saem da velocidade do próprio quadro, não de constantes;
-     · a RABIOLA é um rastro: cada nó dela ocupa uma posição por onde a pipa passou há
-       k quadros. É o que faz o rabo chicotear DEPOIS da pipa, em vez de acompanhar rígido.
-
-   Altura de 25 a 40 m: acima da laje (5,2 m) e do horizonte de prédios, que é onde pipa de
-   comunidade voa. Não é colisor, não é occluder e não projeta sombra — 30 m acima da cena,
-   sombra de pipa é orçamento gasto em pixel que ninguém vê.
-   ═══════════════════════════════════════════════════════════════════════════════════ */
+/* PIPA NO CÉU — região append-only. Voo procedural: a linha tem comprimento fixo, o abanar
+   é soma de dois períodos que não fecham e a rabiola é rastro. docs/maps/LAJES-PIPA.md */
 
 /* Só o lajes baixa: pipa em mapa fechado (UPA, Loja H) seria pipa dentro do prédio. */
 export const PIPA_ASSETS = Object.freeze(['pipa']);
 const PIPA_ENVERGADURA = 1.35;      // m de ponta a ponta da vela: pipa grande de laje
 const PIPA_RABIOLA_NOS = 14;        // nós do rastro
-const PIPA_RABIOLA_ATRASO = 3;      // quadros de amostra entre um nó e o seguinte
+const PIPA_RABIOLA_ATRASO = 3;      // quadros entre um nó do rastro e o seguinte
 const PIPA_HIST = PIPA_RABIOLA_NOS * PIPA_RABIOLA_ATRASO + 2;
 
 function pipaFallback() {
-  /* Sem GLB (harness node, rede fora do ar) a pipa continua existindo como losango — o voo
-     é o mesmo. Fallback mudo aqui devolveria céu vazio sem ninguém perceber. */
+  /* Sem GLB (harness node, sem rede) a pipa vira losango e o voo é o mesmo:
+     fallback mudo devolveria céu vazio sem ninguém perceber. */
   const grupo = new THREE.Group();
   const vela = new THREE.Mesh(new THREE.PlaneGeometry(PIPA_ENVERGADURA * .82, PIPA_ENVERGADURA),
     new THREE.MeshStandardMaterial({ color: 0xd63b42, roughness: .85, side: THREE.DoubleSide }));
@@ -607,10 +583,8 @@ function pipaFallback() {
   return grupo;
 }
 
-/* Céu de pipas preso a uma ambiência já criada: devolve o grupo e passa a ser atualizado
-   junto com a fauna. Envolver o `update` da ambiência (em vez de abrir um laço próprio no
-   game.js) mantém pausa, reset e descarte com UM dono só — pipa que continua abanando com o
-   jogo pausado é o tipo de detalhe que denuncia enfeite colado por fora. */
+/* Envolve o `update` da ambiência em vez de abrir laço no game.js: pausa, reset e descarte
+   ficam com um dono só — pipa abanando com o jogo pausado denuncia enfeite colado por fora. */
 export function attachPipaSky(ambience, root, configs = []) {
   if (!ambience || !configs.length) return null;
   const grupo = new THREE.Group();
@@ -631,8 +605,7 @@ export function attachPipaSky(ambience, root, configs = []) {
     no.userData.skyLife = 'pipa';
     no.userData.nonCollider = true;
     grupo.add(no);
-    /* Linha e rabiola desenhadas como Line: 2 draw calls por pipa, sem geometria de tubo
-       para reconstruir a cada quadro. */
+    // Line, não tubo: 2 draw calls por pipa e nada de geometria refeita por quadro
     const linha = new THREE.Line(new THREE.BufferGeometry().setAttribute('position',
       new THREE.BufferAttribute(new Float32Array(6), 3)),
       new THREE.LineBasicMaterial({ color: 0xe8e2d4, transparent: true, opacity: .5 }));
@@ -655,8 +628,8 @@ export function attachPipaSky(ambience, root, configs = []) {
   });
 
   const passo = (pipa, t) => {
-    /* Períodos que não fecham entre si (7,3 s e 1,73 s): a soma nunca repete o mesmo
-       desenho, que é o que separa "abanando" de "oscilando". */
+    /* Períodos que não fecham entre si (7,3 s e 1,73 s): a soma nunca repete o
+       mesmo desenho, que é o que separa "abanando" de "oscilando". */
     const largo = Math.sin(t / 7.3 * Math.PI * 2 + pipa.fase);
     const tremido = Math.sin(t / 1.73 * Math.PI * 2 + pipa.fase * 1.7);
     const azimute = pipa.fase + largo * pipa.giro + tremido * .09;
@@ -683,8 +656,8 @@ export function attachPipaSky(ambience, root, configs = []) {
       vel.copy(pos).sub(pipa.anterior);
       pipa.anterior.copy(pos);
       pipa.no.position.copy(pos);
-      /* Aponta para onde VAI; inclina para o lado da guinada. Sem velocidade (primeiro
-         quadro, jogo pausado) mantém a pose anterior em vez de saltar para o eixo zero. */
+      /* Aponta para onde VAI e banca para o lado da guinada; sem velocidade (jogo
+         pausado) mantém a pose em vez de saltar para o eixo zero. */
       if (vel.lengthSq() > 1e-8) {
         pipa.no.rotation.y = Math.atan2(vel.x, vel.z);
         pipa.no.rotation.x = -Math.atan2(vel.y, Math.hypot(vel.x, vel.z)) * .6;
@@ -697,7 +670,7 @@ export function attachPipaSky(ambience, root, configs = []) {
       linhaPos.needsUpdate = true;
       const rabPos = pipa.rabiola.geometry.attributes.position;
       for (let i = 0; i < PIPA_RABIOLA_NOS; i++) {
-        /* Cada nó ocupa onde a pipa esteve há i × atraso quadros: o rabo CHEGA depois. */
+        // cada nó ocupa onde a pipa esteve há i × atraso quadros: o rabo CHEGA depois
         const p = pipa.hist[(pipa.cursor - i * PIPA_RABIOLA_ATRASO + PIPA_HIST * 4) % PIPA_HIST];
         rabPos.setXYZ(i, p.x, p.y - i * .012, p.z);
       }

@@ -1822,6 +1822,48 @@ animais tambem"*.
   riggado CC0 (varredura Quaternius + Poly Pizza 19/08, documentada no FONTE.md); o
   pipeline de animação Mint é humanoid-only. Integração no córrego é da frente B.
 
+### BUG-75 · Bot do lajes não sai de perto do respawn porque atira de 50 m — ABERTO 26/08
+
+**Sintoma literal do dono (26/08):** *"os bots ficam so no respawn em cima e nao tentam
+circular pelo mapa embaixo tambem"*.
+
+**O portão estava INTEIRO VERDE quando isso foi dito.** A `LV1` provava rota por baixo, a
+`LV6` provava aresta de térreo andável, a `CTF2` contava duas rotas separadas. Nenhuma das
+três olha para o bot.
+
+**Duas causas foram achadas e CONSERTADAS** na rodada de 26/08 (porta da laje tapada por
+guarda de patamar; `nearestWaypoint` respondendo em planta num mapa de duas camadas) — ver
+`docs/maps/LAJES-BOTS.md` e a régua `eval:lajes-bots` (LB1/LB2, antes 4 arestas bloqueadas e
+84,6% de acerto de camada; depois 0 e 100%).
+
+**O QUE CONTINUA ABERTO, e é o que o dono vê.** Com o combate ligado, o raio de exploração do
+bot no lajes é **12,8 m**, contra 23,2 m (escadão), 23,0 m (piscinão) e 38,5 m (ferro velho).
+A causa não é o grafo: com o combate suprimido, no MESMO grafo, o raio vai a **44,1 m** e a
+escada aparece no rastro. A causa é a soma de duas coisas:
+
+1. no lajes **100% dos engajamentos acontecem acima de 25 m**, mediana **49,9 m** (escadão
+   19,0 m) — as duas lajes de spawn se enxergam por um corredor de ar sobre o miolo;
+2. `_updateBot` **não avança rota nenhuma enquanto `b.target` existe** (`game.js`, ramo
+   `else` do roam).
+
+O bot não precisa andar para atirar, então não anda: congela onde viu o primeiro inimigo, a
+poucos metros do respawn.
+
+**Conserto precisa de decisão do dono**, porque as duas saídas custam caro fora desta frente:
+(a) redesenhar a visada do telhado para quebrar o corredor spawn↔spawn — mexe no visual que
+o próprio dono chamou de melhor do jogo; (b) deixar o bot progredir na rota com alvo distante
+em mãos — mexe na IA de combate de **todos** os mapas.
+
+**Tentativa parcial já medida e insuficiente:** massa de cobertura na frente das duas lajes
+de spawn levou o engajamento mediano de 48,6 m para 41,9 m e o térreo de 7,3% para 12,8%,
+mas o raio CAIU (15,1 → 13,0 m).
+
+**Sem cláusula de propósito.** `eval:lajes-bots` imprime navegação e partida real lado a lado
+em toda execução; a distância entre os dois números é o defeito. Uma cláusula "o bot põe pé
+no térreo" foi escrita e **descartada**: medida no estado anterior à rodada ela nascia VERDE
+(7,2% das amostras, combate suprimido). Régua que não morde dá por resolvido o que continua
+aberto.
+
 ### BUG-58 · Lajes é a régua visual de favela, mas está labiríntico e grande demais — ABERTO 17/08
 
 **Sintoma literal do dono:** *"mapa esta muito labirintico e confuso apesar que os becos
@@ -1835,6 +1877,45 @@ ramais; a decisão de arte do lajes vira o padrão dos mapas de favela. A régua
 circuito (LC1-LC6) já mede conectividade — falta um teto de COMPLEXIDADE (nº de ramais /
 área total / decisões por travessia) medido contra o que o dono aprovar na versão
 simplificada.
+
+**Escala dos barracos — CORRIGIDO EM ARQUIVO 26/08, aguardando olho do dono.** Frase literal
+do dono (26/08): *"os barracos estao em escala errada 3-4 barracos onde deviam ser apenas
+um, varias estruturas confusas"*.
+
+Medido antes de mexer (o colisor de casa passou a carregar id, altura, fachada e rumo, que é
+o que deixa a régua contar barraco sem adivinhar pela caixa):
+
+| | antes | depois |
+|---|---|---|
+| casas de kit no mapa | **127** | **63** |
+| fachada mediana | 1,87 m (para 5,15 m de altura — razão **0,36**) | igual |
+| casas com fachada < 2,2 m | 125 de 127 | 62 de 63 |
+| casas por célula de 6 × 6 m (mediana / máximo) | 4 / **7** | 2 / **4** |
+| pé-direito fora da faixa 2,40–2,80 m (BUG-55) | 1 | 0 |
+
+A causa é a combinação de duas coisas certas isoladamente: as casas do kit são **torres
+estreitas** (2,3 m de largura para 6,2 m de altura) e o mapa as escala pela altura da laje
+(5,15 m). A fachada sai com 1,87 m, e o laço da fileira enchia a face até acabar — três casas
+numa face de 5,8 m.
+
+Conserto: **uma casa por face de bloco**, descentrada por bloco (fachada sempre no meio
+devolve simetria de maquete), e o resto da face vira `wallWithRelief` — o mesmo painel de
+alvenaria com viga de coroamento e janela que o mapa já usa nos vãos vetados, então nada de
+novo entra no vocabulário visual. No beco, painel de 2,2 m entre uma casa e a próxima: o
+passo casa→casa vai de ~2,0 m para ~4,1 m. As alturas do beco passam a fechar em pavimento
+inteiro (5,20/5,40 de sobrado, 2,70 de térrea) — 4,20 m não era nem um pé-direito nem dois.
+
+**Por que não alargar a casa em vez de tirar as vizinhas:** `placeProp` e `PropBatch` escalam
+UNIFORME (o `targetLen` é média geométrica com a altura, não estica só a largura), e para a
+fachada encher a face o modelo precisaria de 2,24× no horizontal. Escala não uniforme em
+malha instanciada é outra frente. O que separa "casa" de "palito" aqui é o contexto: casa
+ladeada por alvenaria lê como casa, três lado a lado leem como cerca de torres.
+
+Régua: **ESC6** em `escala-favela-check.mjs` — no máximo 4 casas por célula de 6 m (o teto é
+geométrico: uma célula cabe um bloco, e um bloco tem quatro faces) e pé-direito por pavimento
+na MESMA faixa 2,40–2,80 m das outras cláusulas. Vermelha no estado anterior (pior célula 7,
+14 células acima do teto), verde depois. Mutante `barracada` repõe as casas enfileiradas e é
+mordido (pior célula 10).
 
 **Anti-trap (v2.1, plans/13) — CORRIGIDO EM ARQUIVO 19/08, aguardando olho do dono.**
 Frase literal do dono (17/08): *"a parte debaixo tem cantos intransponiveis se vc cai de

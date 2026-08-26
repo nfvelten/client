@@ -71,10 +71,8 @@ const PLANKS = Object.freeze([
   { id: 'CS-SE', a: [2.5, 28.5], b: [7.4, 27] },
   { id: 'NW-CN', a: [-7.4, -27.2], b: [-2.5, -28.5] },
   { id: 'CN-NE', a: [2.5, -28.5], b: [7.4, -27.2] },
-  /* z = −10,2 e não −11: em −11 a ponta oeste caía no VÃO entre as duas partes da WN
-     (part0 termina em −11,9, part1 começa em −10,7), e o A* ligava essa ponta ao miolo da
-     laje atravessando o guarda do vão — aresta que o corpo não anda (LB1). Em −10,2 a ponta
-     pousa dentro da part1 e a tábua continua tocando MN (z −13,5..−8,5) e WN. */
+  /* z −10,2 e não −11: em −11 a ponta caía no VÃO entre as partes da WN e o A* ligava
+     por cima do guarda — aresta que o corpo não anda (LB1). */
   { id: 'WN-MN', a: [-7.4, -10.2], b: [-5.9, -10.2] },
   { id: 'MS-SE', a: [3.8, 25], b: [7.4, 25] },
   { id: 'CS-MS', a: [3, 28.5], b: [3, 27] },
@@ -120,9 +118,8 @@ export const LAJES_CONNECTIONS = Object.freeze([
 for (const c of STAIR_CONFIGS) {
   if (!LAJES_CONNECTIONS.includes(c.name)) throw new Error(`escada ${c.name} fora de LAJES_CONNECTIONS`);
 }
-/* Vão de alvenaria entre duas casas de beco. 2,2 m = a fachada que o kit entrega (1,87 m)
-   com folga: com ele o passo casa→casa passa de ~2,0 m para ~4,1 m, e nenhuma célula de
-   6 m do beco recebe mais de duas casas (ESC6). */
+/* Vão de alvenaria entre duas casas de beco: 2,2 m é a fachada do kit (1,87 m) com folga,
+   e leva o passo casa→casa de ~2,0 m para ~4,1 m (ESC6). */
 const VAO_ENTRE_CASAS = 2.2;
 const PRACA = Object.freeze({ x0: -7.2, x1: 7.2, z0: -8.2, z1: 9.0 });
 const naPraca = (x, z, hx = 0, hz = 0) => x + hx > PRACA.x0 && x - hx < PRACA.x1
@@ -265,8 +262,7 @@ export function buildLajes(scene, T) {
     const hz = Math.abs(-hxL * sn) + Math.abs(hzL * cs);
     const x = options.x, z = options.z;   // batchHouse centraliza a Box3 exatamente no alvo
     const y = options.y || 0;
-    /* `casa` marca o colisor como CASA DO KIT: é o que deixa a régua de escala contar
-       barraco (e só barraco) sem adivinhar pela caixa. */
+    // `casa` marca o colisor como CASA DO KIT: é o que a ESC6 conta sem adivinhar
     colliders.push({ minX: x - hx, maxX: x + hx, minY: y, maxY: y + options.targetH,
       minZ: z - hz, maxZ: z + hz, casa: id, casaH: options.targetH,
       casaFrente: hxL * 2, casaFundo: hzL * 2, casaRy: ry });
@@ -429,12 +425,8 @@ export function buildLajes(scene, T) {
             a[1] + tz * centro + nz * side * (front + .01), index + i);
           placedAny = true;
         }
-        /* MURO ENTRE CASAS. O passo era `halfAlong * 2 + .12`, ou seja fachada colada em
-           fachada: com a fachada de 1,87 m que o kit entrega, cabiam três casas em 6 m e o
-           beco lia como cerca de torres — o "3-4 barracos onde deviam ser apenas um" do
-           dono. Agora entra um painel de alvenaria (o mesmo `wallWithRelief` dos vãos
-           vetados) entre uma casa e a próxima, e o passo cresce para o vão inteiro. A casa
-           volta a ter vizinha de muro, que é como comunidade é de perto. Cobrado pela ESC6. */
+        /* MURO ENTRE CASAS: o passo era fachada colada em fachada e o beco lia como cerca
+           de torres. A casa volta a ter vizinha de muro. ESC6, KNOWN-BUGS BUG-58 */
         const vao = VAO_ENTRE_CASAS;
         if (placedAny && cursor + halfAlong * 2 + vao < length - .95) {
           const mx = cursor + halfAlong * 2 + vao / 2;
@@ -699,23 +691,8 @@ export function buildLajes(scene, T) {
             roofGroup.add(divisa);
             continue;
           }
-          /* UMA CASA POR FACE, e o resto é MURO. O laço antigo enfileirava casas até a face
-             acabar, e as casas do kit são TORRES ESTREITAS: escaladas pela altura da laje
-             (5,15 m) a fachada sai com 1,87 m. Numa face de 5,8 m cabiam três — medido:
-             125 de 127 casas com fachada abaixo de 2,2 m, razão largura/altura 0,36, e
-             mediana de 4 casas por célula de 6 × 6 m (máximo 7). É literalmente o "os
-             barracos estao em escala errada, 3-4 barracos onde deviam ser apenas um" do
-             dono (26/08/2026).
-             POR QUE NÃO ALARGAR A CASA em vez de tirar as vizinhas: `placeProp` e o
-             `PropBatch` escalam UNIFORME (o `targetLen` é média geométrica com a altura,
-             não estica só a largura). Para a fachada encher os 5,8 m da face o modelo
-             precisaria de 2,24× no horizontal, e escala não uniforme em malha instanciada é
-             outra frente. O que separa "casa" de "palito" aqui é o CONTEXTO: uma casa
-             ladeada por alvenaria lê como casa; três lado a lado leem como cerca de torres.
-             O muro é o `wallWithRelief` que este mapa já usa nos vãos vetados — viga de
-             coroamento, janela e remendo —, então nada de novo entra no vocabulário visual.
-             Pé-direito continua em 2,58 m por pavimento (dois pavimentos em 5,15 m), dentro
-             da faixa 2,4–2,8 m do BUG-55. */
+          /* UMA CASA POR FACE, o resto é MURO: enfileiradas, as torres estreitas do kit
+             davam três por face. Números e porquê em KNOWN-BUGS BUG-58 (ESC6). */
           let id = HOUSE_IDS[(roofIndex * 3 + fi) % HOUSE_IDS.length];
           let native = HOUSE_BOUNDS[id];
           const targetH = ROOF_H - .05;
@@ -731,9 +708,8 @@ export function buildLajes(scene, T) {
           const ry = face.outward[1] === -1 ? Math.PI : face.outward[1] === 1 ? 0
             : face.outward[0] === 1 ? Math.PI / 2 : -Math.PI / 2;
           const hxW = face.dx ? halfAlong : halfOut, hzW = face.dx ? halfOut : halfAlong;
-          /* A casa fica DESCENTRADA por face (fatia 0, 1 ou 2 dos terços úteis, alternando
-             com o índice do bloco): fachada sempre no meio de toda face devolve simetria de
-             maquete, que é o oposto de comunidade. */
+          /* Descentrada por bloco: fachada sempre no meio de toda face devolve
+             simetria de maquete, que é o oposto de comunidade. */
           const util = face.len / 2 - .06 - halfAlong;
           const terco = [0, -1, 1, -1, 1, 0][(roofIndex + fi) % 6] * util * .55;
           const centro = Math.max(-util, Math.min(util, terco));
@@ -744,9 +720,8 @@ export function buildLajes(scene, T) {
           const coube = halfAlong * 2 <= face.len - .12
             && !invadeGap && !stairBandAt(hx, hz, hxW, hzW) && !roofAccessNear(hx, hz);
           if (coube) solidHouse(id, { x: hx, z: hz, targetH, ry });
-          /* Muro rente nos trechos da face que a casa não ocupa (ou na face inteira, quando
-             a casa não coube). Rente à face do proxy: bala, corpo e pixel continuam
-             concordando sobre onde a parede está. */
+          /* Muro rente no que a casa não ocupa; rente à face do proxy, para bala,
+             corpo e pixel seguirem concordando sobre onde a parede está. */
           for (const [a, b] of coube
             ? [[-face.len / 2, centro - halfAlong], [centro + halfAlong, face.len / 2]]
             : [[-face.len / 2, face.len / 2]]) {
@@ -789,18 +764,8 @@ export function buildLajes(scene, T) {
     }
   }
 
-  /* CORREDOR DE ACESSO: da boca (ponta de tábua, topo de escada) até o miolo da laje que ela
-     serve. A abertura na platibanda era medida em PLANTA, sobre a linha da borda — e quem
-     sai da boca não anda pela borda, anda para DENTRO, na diagonal. Na tábua CN-NE a
-     diagonal batia no guarda do patamar da DESCIDA NORTE a 0,6 m de dentro da abertura, e o
-     bot encostava ali a partida inteira (medido: preso em (−6,97 / −26,67) de t = 6 s a
-     t = 34 s — o "os bots ficam só no respawn em cima" do dono, em número).
-     Alternativa recusada: carpetar a laje de waypoints. Resolvia o bot e derrubava LS2, LV1
-     e CTF2 — com célula em qualquer x da laje a rota mais curta desliza ~2 m, e o
-     `rotasSeparadas`, que apaga faixa em PLANTA e não em 3D, passava a engolir o beco que
-     corria por baixo. O defeito era a porta, então o conserto é a porta.
-     Sai das CONSTANTES do módulo (PLANKS/STAIR_CONFIGS) para poder valer também para os
-     guardas de patamar, que nascem antes de `stairs` existir. Cobrado pela LB1. */
+  /* CORREDOR DE ACESSO da boca (tábua/escada) até o miolo da laje: a abertura da platibanda
+     era medida em planta e prendia o bot na diagonal. LB1, docs/maps/LAJES-BOTS.md */
   const R_CORREDOR = .58;   // corpo de 0,38 m + 0,20 m de folga para não sair raspando
   const BOCAS = [...PLANKS, ...INTERNAL_PLANKS].flatMap((plank) => [plank.a, plank.b])
     .concat(STAIR_CONFIGS.map((config) => [config.side * 7.4, config.bottomZ]));
@@ -815,14 +780,12 @@ export function buildLajes(scene, T) {
   });
   const sobreLaje = (x, z) => ROOF_PARTS.some((part) => !part.tunnel && x >= part.x0 - .05
     && x <= part.x1 + .05 && z >= part.z0 - .05 && z <= part.z1 + .05);
-  /* O guarda só pode abrir onde há laje DOS DOIS LADOS dele. Testar o ponto do próprio guarda
-     não basta: na borda sul da SE (z = 27) o guarda está sobre a laje e o vão de 5,2 m começa
-     0,1 m adiante — a primeira versão abriu ali e a MAP6 pegou na hora (2 bordas alcançáveis
-     com queda de 5,2 m sem guarda). Trocar bot preso por jogador despencando não é conserto. */
+  /* Abre só onde há laje DOS DOIS LADOS: a 1ª versão abriu na borda sul da SE e a MAP6 pegou
+     (2 quedas de 5,2 m sem guarda). Trocar bot preso por jogador despencando não é conserto. */
   const LADO = .5;   // meio passo do corpo: o suficiente para a borda do vão aparecer
   const lajeDosDoisLados = (x, z, alongX) => sobreLaje(x + (alongX ? 0 : LADO), z + (alongX ? LADO : 0))
     && sobreLaje(x - (alongX ? 0 : LADO), z - (alongX ? LADO : 0));
-  /* Guarda em fatias: abre só o pedaço que cai no corredor E tem laje dos dois lados. */
+  // guarda em fatias: abre só o pedaço que cai no corredor E tem laje dos dois lados
   const guardaFatiado = (x0, x1, z, alongX, mat, altura = .62) => {
     const passo = .66, comprimento = Math.abs(x1 - x0), n = Math.max(1, Math.round(comprimento / passo));
     for (let i = 0; i < n; i++) {
@@ -1095,8 +1058,7 @@ export function buildLajes(scene, T) {
   const roofAccessOnHorizontal = (x, z) => accessPoints.some(([px, pz]) => Math.abs(pz - z) < .1 && Math.abs(px - x) < .9);
   const roofAccessOnVertical = (x, z) => accessPoints.some(([px, pz]) => Math.abs(px - x) < .1 && Math.abs(pz - z) < .9);
   const guard = (x, z, alongX, length, index) => {
-    /* Testa as duas PONTAS e o meio do trecho: o guarda-corpo tem 0,82 m e um teste só no
-       centro deixa passar meio trecho dentro do corredor. */
+    // pontas e meio: o guarda tem 0,82 m e testar só o centro passa meio trecho
     const meia = length / 2;
     for (const t of [-1, 0, 1]) {
       const px = x + (alongX ? meia * t : 0), pz = z + (alongX ? 0 : meia * t);
@@ -1261,10 +1223,8 @@ export function buildLajes(scene, T) {
   for (const [x, z] of [[-13.4, -10], [13.4, -2], [-13.4, 17], [13.4, 20]])
     addWire([x < 0 ? -5.8 : 5.7, 9.3, z - 2], [x, 8.4, z], .7, 0);
 
-  /* PIPAS: saíram daqui. Eram 12 losangos de BufferGeometry PARADOS entre 14 e 22 m, com
-     rotação fixa por índice — "pipas nao voam" (dono, 26/08/2026). Agora são pipas de
-     verdade (GLB Mint) presas numa linha, com voo procedural, criadas junto da ambiência
-     no fim deste arquivo. Ver a região PIPA NO CÉU em ambientlife.js. */
+  /* PIPAS saíram daqui: eram 12 losangos PARADOS ("pipas nao voam", dono). Agora são GLB
+     com voo procedural, criadas junto da ambiência. docs/maps/LAJES-PIPA.md */
   for (const [x, z] of [[-8.7, 20], [2, -30]]) {
     const reel = new THREE.Mesh(new THREE.CylinderGeometry(.18, .18, .34, 16), MAT.wood);
     reel.rotation.z = Math.PI / 2; reel.position.set(x, ROOF_H + .22, z); reel.userData.rooftopUse = 'carretel'; root.add(reel);
@@ -1361,23 +1321,14 @@ export function buildLajes(scene, T) {
   for (let i = 1; i < MAIN_BECO.length; i++) line(MAIN_BECO[i - 1], MAIN_BECO[i]);
   for (const branch of BRANCHES) line(branch[0], branch[1]);
 
-  /* MALHA ANDÁVEL, UMA POR CAMADA. O térreo ganhou grade na rodada da praça (o mapa só
-     existia por cima porque só o beco tinha nós). A LAJE continuava com UM nó por parte de
-     telhado — o centro —, e era isso que prendia o bot no respawn de cima: ele saía da
-     tábua e mirava o centro da laje vizinha em linha reta, a reta raspava a platibanda de
-     0,38 m na quina da abertura e ele encostava ali a partida inteira (medido: 21/21 bots
-     com ymin = 5,20 m e 0% de amostra no térreo, scratchpad/sonda-bots-lajes.mjs).
-     Grade nas DUAS camadas: o A* passa a andar de célula em célula também em cima, e a
-     descida vira um caminho como qualquer outro. Ver docs/maps/LAJES-BOTS.md */
+  /* MALHA DE TÉRREO (docs/maps/LAJES-PRACA.md). A laje segue com o nó de CENTRO por parte:
+     carpetá-la foi medido e RECUSADO — derruba LS2/LV1/CTF2. docs/maps/LAJES-BOTS.md */
   const livreEm = (y, x, z, r = .45) => {
     for (const c of colliders) {
       if (c.minY > y + 1.4 || c.maxY < y + .25) continue;
       if (x + r > c.minX && x - r < c.maxX && z + r > c.minZ && z - r < c.maxZ) {
-        /* Colisor GIRADO (guarda-corpo de tábua diagonal) tem AABB muito maior que a peça:
-           o corrimão de 0,07 m da tábua CN-NE ocupa uma AABB de 6,0 × 1,7 m. Testar pela
-           AABB apagava a laje inteira em volta de toda tábua diagonal — a grade de cima
-           nascia sem célula justo na boca de acesso. Mesma matemática do `_collideRot` do
-           game.js: o teste real é na caixa local. */
+        /* Colisor GIRADO tem AABB muito maior que a peça (corrimão de 7 cm → AABB de
+           6,0 × 1,7 m): o teste real é na caixa local, como no `_collideRot`. */
         if (!c.ry) return false;
         const wx = x - c.cx, wz = z - c.cz;
         const lx = wx * c.cos - wz * c.sin, lz = wx * c.sin + wz * c.cos;
@@ -1510,13 +1461,8 @@ export function buildLajes(scene, T) {
     link(topNode, alvoLaje);
   }
 
-  /* NÓ MAIS PRÓXIMO EM 3D, não em planta. O lajes tem duas camadas empilhadas: a projeção
-     em XZ de um bot na laje cai em cima de um nó de BECO, e era esse nó que o A* recebia
-     como origem. O bot então "seguia" uma rota de térreo andando pelo telhado — nunca
-     encostava numa escada, e é isso que o dono viu como "os bots ficam só no respawn de
-     cima". O peso 3× em y não é estético: 5,2 m de desnível passam a custar 15,6 m de
-     planta, mais que a maior laje do mapa, então camada errada nunca ganha de camada certa.
-     `yRef` é opcional — mapa de uma camada só continua chamando com dois argumentos. */
+  /* NÓ MAIS PRÓXIMO EM 3D: em planta, um bot na laje recebia origem no BECO. Peso 3× em y
+     (5,2 m viram 15,6 m); `yRef` é opcional. LB2, docs/maps/LAJES-BOTS.md */
   const PESO_Y = 3;
   function nearestWaypoint(x, z, yRef) {
     let best = 0, distance = Infinity;
@@ -1544,10 +1490,8 @@ export function buildLajes(scene, T) {
     const path = [to]; for (let current = previous[to]; current >= 0; current = previous[current]) path.unshift(current); return path;
   }
 
-  /* AS QUATRO VAGAS FICAM NA LAJE. Tentativa medida em 26/08: mover duas vagas por time
-     para os quintais laterais levava o bot ao térreo (0,0% → 7,3% das amostras), e reprovava
-     a LS1 — "os dois times nascem nas lajes" é contrato do mapa, não detalhe de ajuste.
-     Nascer em cima fica; quem tem que levar o bot para baixo é a rota, não o spawn. */
+  /* AS QUATRO VAGAS FICAM NA LAJE: mover duas ao térreo levava o bot para baixo e reprovava
+     a LS1, que é contrato do mapa. Medição em docs/maps/LAJES-BOTS.md */
   const spawns = {
     E: [-1.9, -.65, .65, 1.9].map((x) => ({ x, z: -32.3, yaw: 0 })),
     B: [-1.9, -.65, .65, 1.9].map((x) => ({ x, z: 32.3, yaw: Math.PI })),
@@ -1600,9 +1544,8 @@ export function buildLajes(scene, T) {
       { mode: 'ground', pos: [10.9, ROOF_H, -2.2], phase: 5.3 },
       { mode: 'ground', pos: [1.6, ROOF_H, 30.5], phase: 6.1 },
       /* Pombo de PRAÇA, no chão: junto da mesa de bar e do banco, não na laje. */
-      /* z 6,4 → 4,0: em 6,4 a pomba nascia DENTRO da mesa de bar da praça (colisor
-         x −6,69..−3,96 / z 4,90..6,85) e a AR3 do ambience-registry reprovava o mapa
-         inteiro. Agora ela fica ao lado da mesa, que é onde pomba de praça fica mesmo. */
+      /* z 6,4 → 4,0: em 6,4 a pomba nascia DENTRO da mesa de bar e a AR3
+         reprovava o mapa inteiro. Ao lado da mesa é onde pomba de praça fica. */
       { mode: 'ground', pos: [-5.7, 0, 4.0], phase: 1.8 },
       { mode: 'ground', pos: [2.9, 0, -5.8], phase: 3.7 },
     ],
@@ -1614,10 +1557,8 @@ export function buildLajes(scene, T) {
     /* Gato de telhado (BUG-57): ronda a laje do churrasco, parte sul [21.2,27] */
     cats: [{ pos: [-11.5, ROOF_H, 22.2], to: [-9.3, ROOF_H, 24.5], phase: 1.2 }],
   });
-  /* TRÊS pipas, âncoras em pontos distintos do mapa (laje norte, praça, laje sul) e alturas
-     escalonadas de 26 a 38 m: de qualquer canto do mapa dá para ver pelo menos uma abanando,
-     e nenhuma some atrás da outra. Âncora na LAJE (5,2 m) porque é de lá que se solta pipa
-     na comunidade; a do meio sai da praça, que é o chão novo desta rodada. */
+  /* Três âncoras distintas (laje norte, praça, laje sul) e altura de 26 a 38 m: de qualquer
+     canto vê-se uma abanando e nenhuma some atrás da outra. docs/maps/LAJES-PIPA.md */
   attachPipaSky(ambience, root, [
     { ancora: [-3.2, ROOF_H, -30.5], alt: 26, raio: 9.5, fase: .4, giro: .62 },
     { ancora: [1.8, 0, 3.4], alt: 33, raio: 12.5, fase: 2.3, giro: .48 },
