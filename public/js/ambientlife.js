@@ -568,9 +568,8 @@ export function placeFauna(id, { x = 0, y = 0, z = 0, ry = 0, targetLen, submerg
 
 /* Só o lajes baixa: pipa em mapa fechado (UPA, Loja H) seria pipa dentro do prédio. */
 export const PIPA_ASSETS = Object.freeze(['pipa']);
-const PIPA_ENVERGADURA = 1.35;      // m de ponta a ponta da vela: pipa grande de laje
-const PIPA_RABIOLA_NOS = 14;        // nós do rastro
-const PIPA_RABIOLA_ATRASO = 3;      // quadros entre um nó do rastro e o seguinte
+/* envergadura da vela em metros; nós do rastro; quadros entre um nó e o seguinte */
+const PIPA_ENVERGADURA = 1.35, PIPA_RABIOLA_NOS = 14, PIPA_RABIOLA_ATRASO = 3;
 const PIPA_HIST = PIPA_RABIOLA_NOS * PIPA_RABIOLA_ATRASO + 2;
 
 function pipaFallback() {
