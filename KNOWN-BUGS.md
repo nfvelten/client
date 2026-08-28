@@ -1647,6 +1647,78 @@ mudar.
 
 ## P1 — o jogador vê
 
+### BUG-80 · Córrego: a rota baixa é cenário — as pontes barram por baixo e uma rampa não sobe
+
+**Reportado (28/08/2026, palavras literais do dono jogando a MAIN em produção):**
+
+> *"a rampa por cima dos barracos nao é acessivel aos jogadores"* · *"as rampas de acesso ao
+> corrego nao da pra andar pra cima"* · *"cando cai no corrego voce nao consegue passar por
+> baixo da rampa e deveria dar"* · *"o barraco tem que dar pra entrar nele e depois pegar a
+> rampa por cima pro outro lado do mapa"*
+
+Dois defeitos MEDIDOS, e dois itens que não são defeito (ver o fim da entrada). O teto que
+vale é o `STEP_H = 0,55 m` do `game.js:5044`, não o `DEGRAU = 0,30` das grades de régua.
+
+**A · As pontes fecham a rota baixa: degrau de 1,90 m.**
+
+`groundHeightAt` devolvia UM Y por (x,z) e o ramo da ponte disparava primeiro, sem saber a
+que altura o corpo estava. Quem andava no fundo do canal (y = −1,75) recebia 0,15 ao chegar
+em cada ponte.
+
+| medida (x = 0, ao longo de z) | antes | depois |
+|---|---|---|
+| maior degrau no fundo do canal | **1,90 m** (z = −23,5) | **0,00 m** |
+| pontes bloqueando | 3 de 3 | 0 de 3 |
+| ponte vista de cima (y = 0,15) | 0,15 | 0,15 — sem regressão |
+
+**Já tinha sido resolvido nesta base, em outro mapa.** `map_havan.js` pagou o mesmo defeito
+em 04/08 (*"não dá pra andar debaixo das escadas do respawn da loja"*) e criou a convenção
+`groundHeightAt(x, z, yRef)`; o `_updatePlayer` passa o Y em `game.js:5039/5047/5056`. O
+córrego repetiu o defeito por não usar a convenção que já existia.
+
+**O corpo CABE — isto foi conferido, não suposto.** `_collide` mede o tronco entre
+`pos.y + 0,3` e `pos.y + 1,5` (`game.js:5-linha da guarda`). Do fundo do canal a cabeça
+fica em −0,25 m, e a face inferior do tablado está em 0 — 0,25 m de folga. Nenhuma
+geometria precisou subir.
+
+**B · A rampa leste nasceu fora do lugar: degrau de 1,435 m no meio dela.**
+
+`RAMPAS` declarava `{ lado: 1, zAlto: 29, zBaixo: 35 }`, mas a regra das pontas assoreadas
+(`|z| >= HALF_Z − 6 = 34`, `map_corrego.js:1057`) roda ANTES da regra da rampa e devolve
+0,05. O pé da rampa caía dentro da faixa já assoreada.
+
+| rampa | degrau máx antes | depois |
+|---|---|---|
+| oeste z[−33,−27] | 0,073 m | 0,073 m |
+| leste z[−13,−7] | 0,073 m | 0,073 m |
+| oeste z[9,15] | 0,073 m | 0,073 m |
+| **leste z[29,35] → z[26,32]** | **1,435 m** | **0,073 m** |
+
+Correção: a rampa pousa em z = 32, onde o canal ainda está no fundo. Locomoção medida com
+o `_updatePlayer` de verdade (240 ticks segurando W): as outras três subiam 1,65–1,70 m e
+esta subia **−0,15 m**.
+
+**Palpite óbvio REFUTADO.** "As rampas não sobem" sugeria inclinação ou step-up. Medido: as
+outras três têm 0,073 m de degrau por passo de 0,25 m — bem abaixo dos 0,55 m — e o corpo
+sobe as três no harness. O defeito era de UMA rampa, e por posição, não por inclinação.
+
+**Régua:** `eval:corrego-rotas` (`tools/eval/corrego-rotas-check.mjs`), no `check:fast`.
+ROTA1 perfil dentro do vão × `STEP_H` · ROTA2 fundo alcançável NA PROFUNDIDADE · ROTA3
+ilhas altas desconectadas · ROTA4 rota baixa sob as pontes, com a recíproca de que o
+tablado continua existindo por cima. Seis mutantes, todos mordendo:
+`rampa-plana`, `canal-tampado`, `canal-ilhado`, `ilha-solta`, `ponte-macica` (reproduz
+exatamente os 1,90 m), `ponte-sumida`.
+
+**Duas armadilhas de instrumento pagas aqui (lei 7), registradas porque custaram tempo:**
+a primeira ROTA1 varria um passo ALÉM do vão e pegava a parede do canal voltando —
+reprovava as quatro rampas por artefato; e a primeira ROTA2 dava verde pelo TABLADO das
+pontes, que passa por cima dos pontos de sonda, medindo laje e chamando de fundo.
+
+**O que NÃO é defeito, e por isso não foi "consertado":** a *"rampa por cima dos barracos"*
+e *"entrar no barraco e pegar a rampa pro outro lado"* **não existem no mapa**. A ROTA3
+mediu 0 superfícies altas andáveis e desconectadas — não há rampa alta inacessível, há
+rampa alta inexistente. São pedido de construção, não conserto; ficam fora desta entrada.
+
 ### BUG-79 · Córrego: grama nunca foi servida e as rampas do canal mostram o céu
 
 **Reportado (27/08/2026, palavras literais do dono):**
