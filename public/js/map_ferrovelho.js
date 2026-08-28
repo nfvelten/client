@@ -9,6 +9,7 @@
 import * as THREE from 'three';
 import { placeProp } from './mapprops.js';
 import { VAO_BANDS, aoBoxGeo, aoMatFactory, ContactSkirt, BASE_FLOATING, onGround } from './vao.js';
+import { createSkyLife } from './skylife.js';
 import { makeAerialFog } from './bloom.js';   // névoa exponencial + cor por direção do olhar
 import { detailFor } from './textures.js';   // normal+rough por Sobel (ver lam)
 import { decalIds, paredeAtras, caixaGirada } from './map_decals.js';   // pool por NOME + raycast de parede
@@ -1877,7 +1878,13 @@ export function buildFerroVelho(scene, T) {
     murais: { texturas: T.muraisHom, nomes: T.muraisHomNomes, seed: 61, separacao: 13 },
   });
 
+  /* Padre no balao (skylife.js): deriva alta, fora do miolo jogavel. O balao e o
+     unico prop de ceu deste mapa — ver docs/SKYLIFE.md. */
+  const skyLife = createSkyLife(root, { map: 'ferro_velho', low: LOWQ, balloons: [{ center: [0, 58, 10],  radius: 78,  speed: .029, phase: 3.3 }] });
+
   return {
+    skyLife,
+    update(dt, time) { skyLife.update(dt, time); },
     root, colliders, occluders, groundHeightAt, spawns, sun, hemi, pickups, ctfPoints,
     /* DECLARAÇÃO PRA RÉGUA (tools/eval/decal-probe.mjs): a lista COMPLETA contra a qual o
        `paredeAtras` validou cada decalque = colliders + as duas folhas giradas do portão. */

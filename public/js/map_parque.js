@@ -1,5 +1,6 @@
 // Parque da Treta: arena CTF simétrica, colorida e inteiramente procedural.
 import * as THREE from 'three';
+import { createSkyLife } from './skylife.js';
 
 const HALF_X = 32;
 const HALF_Z = 42;
@@ -385,8 +386,14 @@ export function buildParque(scene, T) {
     }
   }
 
+  /* Padre no balao (skylife.js): deriva alta, fora do miolo jogavel. O balao e o
+     unico prop de ceu deste mapa — ver docs/SKYLIFE.md. */
+  const skyLife = createSkyLife(root, { map: 'parque_treta', low: false, balloons: [{ center: [0, 52, 0],   radius: 68,  speed: .033, phase: 4.2 }] });
+
   return {
-    root, colliders, occluders, decalSolids: [root], groundHeightAt: () => 0, slowAt: () => false, update, sun, hemi, pickups,
+    skyLife,
+    root, colliders, occluders, decalSolids: [root], groundHeightAt: () => 0, slowAt: () => false,
+    update(dt, time) { update?.(dt, time); skyLife.update(dt, time); }, sun, hemi, pickups,
     spawns: {
       E: [-9, -3, 3, 9].map(x => ({ x, z: -38.5, yaw: 0 })),
       B: [-9, -3, 3, 9].map(x => ({ x, z: 38.5, yaw: Math.PI })),

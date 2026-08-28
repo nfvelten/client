@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import { placeProp } from './mapprops.js';
 import { VAO_BANDS, aoBoxGeo, aoMatFactory, ContactSkirt, BASE_FLOATING, onGround } from './vao.js';
+import { createSkyLife } from './skylife.js';
 import { makeAerialFog } from './bloom.js';   // névoa exponencial + cor por direção do olhar
 import { detailFor, registerDetail } from './textures.js';   // normal+rough por Sobel (ver lam)
 import { decalIds, paredeAtras } from './map_decals.js';   // pool por NOME + raycast na MALHA
@@ -1803,7 +1804,13 @@ export function buildBrasilia(scene, T) {
     murais: { texturas: T.muraisHom, nomes: T.muraisHomNomes, seed: 17, separacao: 13, larg: 4.0, alt: 2.1, minLarg: 2.2 },
   });
 
+  /* Padre no balao (skylife.js): deriva alta, fora do miolo jogavel. O balao e o
+     unico prop de ceu deste mapa — ver docs/SKYLIFE.md. */
+  const skyLife = createSkyLife(root, { map: 'praca_poderes', low: LOWQ, balloons: [{ center: [0, 78, -20], radius: 120, speed: .022, phase: 0.4 }] });
+
   return {
+    skyLife,
+    update(dt, time) { skyLife.update(dt, time); },
     root, colliders, occluders, groundHeightAt, spawns, sun, hemi,
     /* BANDEIRAS DO CTF — DECLARADAS PELO MAPA (06/08). Os nomes CONGRESSO/ÔNIBUS/CATEDRAL
        moravam no fallback do game.js e vazavam pra QUALQUER mapa sem declaração — o dono

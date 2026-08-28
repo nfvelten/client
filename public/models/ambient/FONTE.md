@@ -3,6 +3,15 @@
 Derivados otimizados das referências locais; texturas WebP 256², sem quantização
 de malha skinned.
 
+- `padre_balao.glb` — **obra própria**, gerado no [Mint](https://mint.gg) em 28/08/2026
+  (projeto "CS BRASIL - Time Mítico", modelo "Rainbow Balloon Priest"), otimizado pelo
+  preset `production` do próprio Mint: 868K, 4.465 triângulos, 1 malha, 1 material,
+  Draco + `EXT_texture_webp`. SHA-256 `48bb43f679b603eb…`.
+  Prop de CÉU (`skylife.js`), não fauna: deriva a 50-80 m de altura nos 8 mapas de céu
+  azul. É uma figura de desenho GENÉRICA — batina preta e gola de padre, sem retrato,
+  nome ou semelhança de pessoa real. O gag é o folclore urbano do padre que subiu de
+  balão; a pessoa daquele episódio morreu, e nada aqui a representa.
+
 - `rat_animated.glb` — “Rat Animated”, Lobbyvictor,
   [Sketchfab](https://sketchfab.com/3d-models/rat-animated-cba5c3b8a946499083b4adfbb6d568b8),
   [CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/).

@@ -27,6 +27,7 @@
 // Same buildWorld contract as map.js.
 import * as THREE from 'three';
 import { decalIds, paredeAtras } from './map_decals.js';
+import { createSkyLife } from './skylife.js';
 import { grafitar, esconderSeFaltar } from './graffiti_pass.js';   // cobertura medida, não coordenada à mão
 
 const HALF_X = 17, HALF_Z = 25;   // interior half-extents (walls sit just outside)
@@ -788,7 +789,13 @@ export function buildPoolDay(scene, T) {
     murais: { texturas: T.muraisHom, nomes: T.muraisHomNomes, seed: 53, separacao: 11 },
   });
 
+  /* Padre no balao (skylife.js): deriva alta, fora do miolo jogavel. O balao e o
+     unico prop de ceu deste mapa — ver docs/SKYLIFE.md. */
+  const skyLife = createSkyLife(root, { map: 'piscina_treta', low: false, balloons: [{ center: [0, 54, 0],   radius: 70,  speed: .030, phase: 2.7 }] });
+
   return {
+    skyLife,
+    update(dt, time) { skyLife.update(dt, time); },
     root, colliders, occluders, decalSolids: [root], groundHeightAt, slowAt, spawns, sun, hemi, pickups,
     /* BANDEIRAS DO CTF — DECLARADAS (06/08, defeito do dono: "bandeiras com nome do pátio
        brasília" jogando aqui). O fallback do game.js punha as 3 bandeiras de spawn×0,42 —

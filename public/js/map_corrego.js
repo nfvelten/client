@@ -453,9 +453,12 @@ export function buildCorrego(scene, T) {
   const GRAMA_SPOTS = [];
   for (const lado of [-1, 1]) {
     let i = 0;
-    for (let z = -36; z <= 36; z += 5.2) {
+    /* passo 3,0 e nao 5,2, e DUAS fileiras: o pedido era "ter mais gramineas". A de fora
+       (5,5) e a margem; a de dentro (3,9) encosta na quina do canal. */
+    for (let z = -36; z <= 36; z += 3.0) {
       if ([-22, 0, 22].some((bz) => Math.abs(z - bz) < 2.4)) continue;   // vão das pontes livre
       GRAMA_SPOTS.push({ x: lado * (5.5 + (i % 3) * 0.35), z, ry: (i * 2.399) % 6.283 });
+      if (i % 2 === 0) GRAMA_SPOTS.push({ x: lado * (3.9 + (i % 2) * 0.4), z: z + 1.4, ry: (i * 1.777) % 6.283 });
       i++;
     }
   }
@@ -1328,6 +1331,8 @@ export function buildCorrego(scene, T) {
       { pos: [-11, 23, 31], scale: .88, phase: 6.2 },
     ],
     helicopters: [{ center: [0, 41, 0], radius: 52, speed: .13, phase: 2.1 }],
+    // padre no balao: deriva alta e lenta, fora do raio do heli para os dois nao colarem
+    balloons: [{ center: [0, 58, -6], radius: 74, speed: .028, phase: 1.2, scale: 1 }],
     // araras: a presença aérea que a v2.1 tirou, agora com asa que bate de verdade
     birds: [
       { center: [-4, 27, -8], radius: 26, speed: .30, phase: 0, scale: 1 },
@@ -1336,7 +1341,9 @@ export function buildCorrego(scene, T) {
     ],
   });
 
-  const slowAt = (x, z) => Math.abs(z) >= HALF_Z - 6 && Math.abs(x) <= CORREGO_W / 2 + 2;
+  /* So a LAMINA D'AGUA freia (|x| <= CANAL_X1). Antes pegava ate |x| <= 7 e engolia a
+     margem de grama e a capivara, onde se anda em terra firme. BUG-81. */
+  const slowAt = (x, z) => Math.abs(z) >= HALF_Z - 6 && Math.abs(x) <= CANAL_X1;
 
   return {
     root, colliders, occluders, decalSolids: [root], groundHeightAt, slowAt, spawns, sun, hemi, pickups, ctfPoints, ambience,sound:{loops:[{src:AMB_LOOPS.corrego,pos:[0,.3,-37],radius:15,vol:.45},{src:AMB_LOOPS.corrego,pos:[0,.3,37],radius:15,vol:.45},{src:AMB_LOOPS.cidade,pos:[0,3,0],radius:70,vol:.18}],bioma:'favela'}, propEscala,

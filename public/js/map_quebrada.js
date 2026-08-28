@@ -23,6 +23,7 @@ import { grafitar, esconderSeFaltar } from './graffiti_pass.js';   // cobertura 
 import { VAO_BANDS, aoBoxGeo, aoMatFactory, ContactSkirt, BASE_FLOATING, onGround } from './vao.js';
 import { makeAerialFog } from './bloom.js';
 import { detailFor } from './textures.js';
+import { createSkyLife } from './skylife.js';
 
 
 const QP = new URLSearchParams(typeof location !== 'undefined' ? location.search : '');
@@ -1591,7 +1592,13 @@ export function buildQuebrada(scene, T) {
     ],
   });
 
+  /* Padre no balao (skylife.js): deriva alta, fora do miolo jogavel. O balao e o
+     unico prop de ceu deste mapa — ver docs/SKYLIFE.md. */
+  const skyLife = createSkyLife(root, { map: 'quebrada', low: LOWQ, balloons: [{ center: [0, 56, -8],  radius: 72,  speed: .031, phase: 1.6 }] });
+
   return {
+    skyLife,
+    update(dt, time) { skyLife.update(dt, time); },
     root, colliders, occluders, decalSolids: [root], groundHeightAt, spawns, sun, hemi, pickups, ctfPoints,
     waypoints: { nodes, adj }, nearestWaypoint, findPath,
     bounds: { minX: -HALF_X + 0.5, maxX: HALF_X - 0.5, minZ: -HALF_Z + 0.5, maxZ: HALF_Z - 0.5 },

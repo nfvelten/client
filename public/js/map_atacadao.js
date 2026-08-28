@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { placeProp } from './mapprops.js';
 import { decalIds } from './map_decals.js';
 import { grafitar } from './graffiti_pass.js';
+import { createSkyLife } from './skylife.js';
 
 export const ATACADAO_PROPS = [
   'gondola_mercado', 'gondola_eletro', 'shopping_cart', 'caixa_cobranca', 'arara_roupas',
@@ -242,7 +243,13 @@ export function buildAtacadao(scene, T) {
     B: [-8, -2, 4, 10].map(x => ({ x, z: ZN - 4, yaw: Math.PI })), // loja, olhando pra fachada
   };
 
+  /* Padre no balao (skylife.js): deriva alta, fora do miolo jogavel. O balao e o
+     unico prop de ceu deste mapa — ver docs/SKYLIFE.md. */
+  const skyLife = createSkyLife(root, { map: 'atacadao_treta', low: false, balloons: [{ center: [0, 60, 0],   radius: 82,  speed: .027, phase: 0.9 }] });
+
   return {
+    skyLife,
+    update(dt, time) { skyLife.update(dt, time); },
     root, colliders, occluders, decalSolids: [root], groundHeightAt, slowAt, spawns, sun, hemi, pickups,
     ctfPoints: [
       { id: 'E', label: 'ESTACIONAMENTO', x: -8, z: ZS + 12 },

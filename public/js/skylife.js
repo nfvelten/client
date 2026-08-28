@@ -15,9 +15,42 @@ export const SKY_LIFE_ASSETS = Object.freeze([SKY_KITE_ASSET, SKY_HELI_ASSET, SK
 /* Arara: carregada aqui e não no ambientlife (que é fauna de CHÃO, com rota e censo).
    Asa vira nó pelo split-props-v21; o bater é procedural. docs/SKYLIFE.md. */
 export const SKY_BIRD_ASSET = 'models/ambient/arara_voo.glb';
+/* Padre no balao: prop de ceu do folclore urbano brasileiro, figura generica de desenho.
+   4.465 triangulos, Draco + WebP — cabe no orcamento de decoracao. docs/SKYLIFE.md. */
+export const SKY_BALAO_ASSET = 'models/ambient/padre_balao.glb';
 const _birdLoader = new GLTFLoader();
+const _ambCache = new Map();
 let _birdTemplate = null;
 let _birdPromise = null;
+let _balaoTemplate = null;
+
+/* Memoiza a PROMESSA por URL, nao so o resultado: o dedup do FileLoader trava o 2o
+   consumidor, e foi por isso que o caminho da arara ja fazia assim. */
+function carregaAmbiente(url, rotulo) {
+  if (_ambCache.has(url)) return _ambCache.get(url);
+  const pr = new Promise((resolve) => {
+    try {
+      _birdLoader.load(`${url}?v=${VERSION}`, (gltf) => {
+        gltf.scene.traverse((object) => {
+          if (!object.isMesh) return;
+          object.material.metalness = 0;
+          object.material.roughness = Math.max(.72, object.material.roughness ?? .72);
+        });
+        resolve(gltf.scene);
+      }, undefined, (error) => { console.warn(`[skylife] ${rotulo} nao carregou`, error); resolve(null); });
+    } catch (error) { console.warn(`[skylife] ${rotulo} nao carregou`, error); resolve(null); }
+  });
+  _ambCache.set(url, pr);
+  return pr;
+}
+
+export function preloadSkyBalao() {
+  if (_balaoTemplate) return Promise.resolve(_balaoTemplate);
+  return carregaAmbiente(SKY_BALAO_ASSET, 'padre no balao').then((cena) => {
+    _balaoTemplate = cena;
+    return cena;
+  });
+}
 
 export function preloadSkyBird() {
   if (_birdTemplate) return Promise.resolve(_birdTemplate);
@@ -49,6 +82,7 @@ const BIRD_LEN = 1.05;   // envergadura ~0,9 m; arara-canindé real tem 0,85-1,0
 const KITE_H = 1.6;
 const HELI_H = 3.4;      // altura do rotor ao trem; comprimento sai ~10 m pela proporção do GLB
 const PLANE_H = 2.2;
+const BALAO_H = 4.2;     // cacho + figura: o cacho domina, a figura e ~1/3 da altura
 
 /* Proxies para quando o GLB não carrega: mesmos NOMES DE NÓ do modelo real, para a
    régua medir a mesma mecânica nos dois caminhos. */
@@ -66,6 +100,28 @@ function proxyKite() {
   corpo.name = 'corpo'; group.add(corpo);
   const rabiola = new THREE.Mesh(new THREE.CylinderGeometry(.012, .012, .9, 3), flatMat(0x8a6a2f));
   rabiola.name = 'rabiola'; rabiola.position.y = -.99; group.add(rabiola);
+  return group;
+}
+
+/* Proxy do padre no balao: cacho de esferas + vulto escuro. Existe pela mesma razao dos
+   outros — sem ele o prop SOME quando o GLB falha, em vez de degradar (lei 6). */
+function proxyBalao() {
+  const group = new THREE.Group();
+  const cores = [0xd8433a, 0xe8c53a, 0x3a7fd8, 0x46a852, 0xe8e8e8];
+  let semente = 7;
+  const rnd = () => { semente = (semente * 1103515245 + 12345) & 0x7fffffff; return semente / 0x7fffffff; };
+  for (let i = 0; i < 14; i++) {
+    const b = new THREE.Mesh(new THREE.SphereGeometry(.42, 7, 5), flatMat(cores[i % cores.length]));
+    b.position.set((rnd() - .5) * 1.9, 1.35 + (rnd() - .5) * 1.25, (rnd() - .5) * 1.9);
+    b.scale.y = 1.18;
+    group.add(b);
+  }
+  const corpo = new THREE.Mesh(new THREE.CapsuleGeometry(.19, .52, 3, 6), flatMat(0x14141a));
+  corpo.position.y = -1.15;
+  group.add(corpo);
+  const cadeira = new THREE.Mesh(new THREE.BoxGeometry(.52, .07, .5), flatMat(0x6b4a2c));
+  cadeira.position.y = -1.5;
+  group.add(cadeira);
   return group;
 }
 
@@ -167,12 +223,14 @@ function marcarCeu(object, tipo) {
 }
 
 export class SkyLife {
-  constructor(root, { map = '', low = false, kites = [], helicopters = [], planes = [], birds = [] } = {}) {
+  constructor(root, { map = '', low = false, kites = [], helicopters = [], planes = [], birds = [], balloons = [] } = {}) {
     this.map = map;
     this.time = 0;
     this.items = [];
     this.root = root;
     this.birdConfigs = low ? birds.slice(0, Math.ceil(birds.length / 2)) : birds;
+    // 1 balao por mapa ja e presenca; em low fica 1 tambem (o cacho e o que se ve de longe)
+    this.balaoConfigs = low ? balloons.slice(0, 1) : balloons;
     // LOWQ corta o enxame, não o tipo (ver docs/SKYLIFE.md § Escalas)
     const kiteList = low ? kites.filter((_, i) => i % 2 === 0) : kites;
     const planeList = low ? [] : planes;
@@ -185,16 +243,17 @@ export class SkyLife {
     this.update(1e-6, 0);
     // arara entra assíncrona: 176 KB de ave decorativa não atrasam o 1º frame do mapa
     // `ready` existe para a RÉGUA não dormir num setTimeout; o jogo ignora
-    this.ready = this.birdConfigs.length
-      ? preloadSkyBird().then(() => {
-        if (this._disposed) return this;
-        this.birdConfigs.forEach((config, index) => {
-          const item = this._addBird(config, index);
-          this.root.add(item.root);
-        });
-        this.update(1e-6, 0);
-        return this;
-      })
+    const espera = [];
+    if (this.birdConfigs.length) espera.push(preloadSkyBird().then(() => {
+      if (this._disposed) return;
+      this.birdConfigs.forEach((config, index) => this.root.add(this._addBird(config, index).root));
+    }));
+    if (this.balaoConfigs.length) espera.push(preloadSkyBalao().then(() => {
+      if (this._disposed) return;
+      this.balaoConfigs.forEach((config, index) => this.root.add(this._addBalao(config, index).root));
+    }));
+    this.ready = espera.length
+      ? Promise.all(espera).then(() => { if (!this._disposed) this.update(1e-6, 0); return this; })
       : Promise.resolve(this);
   }
 
@@ -283,6 +342,51 @@ export class SkyLife {
     return item;
   }
 
+  _addBalao(config, index) {
+    const { center = [0, 46, 0], radius = 62, speed = .035, phase = 0, scale = 1, subida = 3.2 } = config;
+    let model = null;
+    if (_balaoTemplate) {
+      model = _balaoTemplate.clone(true);
+      model.updateMatrixWorld(true);
+      const box = new THREE.Box3().setFromObject(model);
+      const alt = (box.max.y - box.min.y) || 1;
+      model.scale.setScalar((BALAO_H * scale) / alt);
+      /* recentra em Y: o GLB nasce com os pes em 0 e no ceu isso vira offset parasita
+         que tira a orbita do raio pedido — mesmo cuidado do _mount. */
+      model.position.y -= (box.max.y + box.min.y) / 2 * model.scale.y;
+    } else {
+      model = proxyBalao();
+      model.scale.setScalar(scale);
+    }
+    const group = new THREE.Group();
+    group.name = `balao:${this.map}:${index}`;
+    group.add(model);
+    marcarCeu(group, 'balao');
+    const item = {
+      tipo: 'balao', root: group, model, usouGlb: !!_balaoTemplate, phase,
+      center: new THREE.Vector3(center[0], center[1], center[2]),
+      radius, speed, subida,
+    };
+    this.items.push(item);
+    return item;
+  }
+
+  _updateBalao(item, t) {
+    /* Balao nao voa: ele DERIVA. Orbita muito lenta, subida/descida de periodo longo e
+       um giro proprio dessincronizado — helice nenhuma, so o vento. */
+    const a = t * item.speed + item.phase;
+    item.root.position.set(
+      item.center.x + Math.cos(a) * item.radius,
+      item.center.y + Math.sin(a * .43 + item.phase) * item.subida,
+      item.center.z + Math.sin(a) * item.radius * .82,
+    );
+    /* o cacho gira no proprio eixo, devagar e fora de fase com a orbita: e o que separa
+       "balao a deriva" de "maquete pendurada num carrossel". */
+    item.root.rotation.y = a * .6 + Math.sin(a * 1.7) * .35;
+    item.root.rotation.z = Math.sin(a * 1.3 + 0.8) * .045;
+    item.root.rotation.x = Math.sin(a * .9) * .035;
+  }
+
   _updateBird(item, t) {
     /* Circuito em elipse achatada (raio menor em Z) para o bando cruzar o campo de
        visão em vez de rodar num carrossel perfeito, e uma subida/descida lenta por
@@ -318,6 +422,7 @@ export class SkyLife {
       else if (item.tipo === 'helicoptero') this._updateHeli(item, t, dt);
       else if (item.tipo === 'aviao') this._updatePlane(item, dt);
       else if (item.tipo === 'arara') this._updateBird(item, t);
+      else if (item.tipo === 'balao') this._updateBalao(item, t);
     }
   }
 

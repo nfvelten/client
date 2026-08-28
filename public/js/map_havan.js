@@ -8,6 +8,7 @@
 import * as THREE from 'three';
 import { placeProp, PropBatch, StaticBatch, PROP_BATCH } from './mapprops.js';
 import { VAO_BANDS, aoBoxGeo, aoMatFactory, ContactSkirt, BASE_FLOATING, onGround } from './vao.js';
+import { createSkyLife } from './skylife.js';
 import { makeAerialFog } from './bloom.js';   // névoa exponencial + cor por direção do olhar
 import { detailFor, registerDetail } from './textures.js';   // normal+rough por Sobel (ver lam)
 import { decalIds, paredeAtras } from './map_decals.js';     // pool por NOME + raycast de parede
@@ -1947,7 +1948,13 @@ export function buildHavan(scene, T) {
     murais: { texturas: T.muraisHom, nomes: T.muraisHomNomes, seed: 29, separacao: 15 },
   });
 
+  /* Padre no balao (skylife.js): deriva alta, fora do miolo jogavel. O balao e o
+     unico prop de ceu deste mapa — ver docs/SKYLIFE.md. */
+  const skyLife = createSkyLife(root, { map: 'loja_h', low: LOWQ, balloons: [{ center: [0, 62, 0],   radius: 86,  speed: .026, phase: 5.1 }] });
+
   return {
+    skyLife,
+    update(dt, time) { skyLife.update(dt, time); },
     root, colliders, occluders, decalSolids: [root], groundHeightAt, spawns, sun, hemi, pickups, doors, ctfPoints,
     waypoints: { nodes, adj }, nearestWaypoint, findPath,
     /* DECLARAÇÃO PRA RÉGUA (tools/eval/map-check.mjs) — não é usada pelo jogo.
