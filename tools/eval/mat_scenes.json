@@ -1,5 +1,5 @@
 {
- "gerado": "2026-08-21T22:25:48.954Z",
+ "gerado": "2026-08-29T19:36:20.280Z",
  "nota": "luzes e env MEDIDOS em runtime (harness.mjs); fatores lidos do chunk JSON dos GLB",
  "maps": [
   {
@@ -60,6 +60,18 @@
     ],
     "color": "#ffd9a8",
     "intensity": 1.5
+   }
+  },
+  {
+   "map": "corrego",
+   "sun": {
+    "pos": [
+     20,
+     35,
+     15
+    ],
+    "color": "#ffc888",
+    "intensity": 1.7
    }
   },
   {
@@ -988,8 +1000,8 @@
      }
     ]
    },
-   "exposure": 2.4,
-   "floor": 0.0042,
+   "exposure": 1.58,
+   "floor": 0.0046,
    "sat": 1.12,
    "metalFactor": 1,
    "roughFactor": 1,
@@ -1064,8 +1076,8 @@
      }
     ]
    },
-   "exposure": 2.4,
-   "floor": 0.0042,
+   "exposure": 1.58,
+   "floor": 0.0046,
    "sat": 1.12,
    "metalFactor": 0.55,
    "roughFactor": 1,
@@ -1096,6 +1108,194 @@
        38,
        30,
        -22
+      ]
+     }
+    ]
+   },
+   "exposure": 1.58,
+   "floor": 0.0046,
+   "sat": 1.12,
+   "metalFactor": 1,
+   "roughFactor": 1,
+   "envMapIntensity": 1,
+   "lightMul": 1
+  },
+  {
+   "id": "vm@corrego",
+   "envMap": "corrego",
+   "scene": {
+    "lights": [
+     {
+      "type": "DirectionalLight",
+      "intensity": 1.377,
+      "color": "#ffcc85",
+      "pos": [
+       -0.45,
+       0.75,
+       0.55
+      ]
+     },
+     {
+      "type": "DirectionalLight",
+      "intensity": 0.268,
+      "color": "#b1c1c3",
+      "pos": [
+       0.6,
+       -0.15,
+       0.5
+      ]
+     },
+     {
+      "type": "DirectionalLight",
+      "intensity": 0.084,
+      "color": "#bcc5c3",
+      "pos": [
+       0.55,
+       0.35,
+       0.75
+      ]
+     },
+     {
+      "type": "DirectionalLight",
+      "intensity": 0.688,
+      "color": "#ffbd72",
+      "pos": [
+       0.2,
+       0.35,
+       -0.9
+      ]
+     },
+     {
+      "type": "DirectionalLight",
+      "intensity": 0.366,
+      "color": "#ffa251",
+      "pos": [
+       -0.2,
+       -0.86,
+       0.47
+      ]
+     },
+     {
+      "type": "HemisphereLight",
+      "intensity": 0.302,
+      "color": "#a0b3c3",
+      "pos": [
+       0,
+       1,
+       0
+      ],
+      "ground": "#3d2f1e"
+     }
+    ]
+   },
+   "exposure": 2.4,
+   "floor": 0.0042,
+   "sat": 1.12,
+   "metalFactor": 1,
+   "roughFactor": 1,
+   "envMapIntensity": 1,
+   "lightMul": 1
+  },
+  {
+   "id": "vmLegado@corrego",
+   "envMap": "corrego",
+   "scene": {
+    "lights": [
+     {
+      "type": "DirectionalLight",
+      "intensity": 1.377,
+      "color": "#ffcc85",
+      "pos": [
+       -0.45,
+       0.75,
+       0.55
+      ]
+     },
+     {
+      "type": "DirectionalLight",
+      "intensity": 0.268,
+      "color": "#b1c1c3",
+      "pos": [
+       0.6,
+       -0.15,
+       0.5
+      ]
+     },
+     {
+      "type": "DirectionalLight",
+      "intensity": 0.084,
+      "color": "#bcc5c3",
+      "pos": [
+       0.55,
+       0.35,
+       0.75
+      ]
+     },
+     {
+      "type": "DirectionalLight",
+      "intensity": 0.688,
+      "color": "#ffbd72",
+      "pos": [
+       0.2,
+       0.35,
+       -0.9
+      ]
+     },
+     {
+      "type": "DirectionalLight",
+      "intensity": 0.366,
+      "color": "#ffa251",
+      "pos": [
+       -0.2,
+       -0.86,
+       0.47
+      ]
+     },
+     {
+      "type": "HemisphereLight",
+      "intensity": 0.302,
+      "color": "#a0b3c3",
+      "pos": [
+       0,
+       1,
+       0
+      ],
+      "ground": "#3d2f1e"
+     }
+    ]
+   },
+   "exposure": 2.4,
+   "floor": 0.0042,
+   "sat": 1.12,
+   "metalFactor": 0.55,
+   "roughFactor": 1,
+   "envMapIntensity": 1.2,
+   "lightMul": 2.4635
+  },
+  {
+   "id": "chao@corrego",
+   "envMap": "corrego",
+   "scene": {
+    "lights": [
+     {
+      "type": "HemisphereLight",
+      "intensity": 0.85,
+      "color": "#d8b89a",
+      "pos": [
+       0,
+       1,
+       0
+      ],
+      "ground": "#4a3830"
+     },
+     {
+      "type": "DirectionalLight",
+      "intensity": 1.7,
+      "color": "#ffc888",
+      "pos": [
+       20,
+       35,
+       15
       ]
      }
     ]

@@ -1632,16 +1632,29 @@ continuam avançando e **atravessam o campo de visão sem disparar**.
 
 ---
 
-### BUG-04 · `ViewModelRig` está escrito, testado — e nunca foi importado
+### ~~BUG-04 · `ViewModelRig` está escrito, testado — e nunca foi importado~~ · RESOLVIDO (constatado 29/08: a entrada estava velha)
 
-`public/js/springs.js:94` exporta uma máquina de estados completa de viewmodel: idle com
-respiração, sway com mola, bob, **reload em 5 fases com queda de carregador**, holster+draw com
-troca de malha no ponto baixo do arco, ADS. Tem teste dedicado (`tools/eval/vmrig-test.mjs`).
+**A afirmação central desta entrada não é mais verdadeira.** Conferido no código de hoje
+(o caso previsto pela própria skill bug-hunt — "a entrada pode estar velha, e estava"):
 
-`public/js/game.js:11` importa **só** `RecoilAxis` de `springs.js`. O `vmrig-test.mjs` valida
-código que **não roda no jogo**. Consequência de produto: o reload não tem fase visível nem
-carregador caindo — o critério V5 do plano de release é impossível de atender enquanto isso não
-mudar.
+- `public/js/game.js:15` — `import { RecoilAxis, ViewModelRig } from './springs.js';`
+- `public/js/game.js:1634` — `rig: new ViewModelRig({ bobGain: 0 })`, com o comentário
+  `/* BUG-04 — ... Aqui ele entra no viewmodel. */`
+- chamadas vivas: `startDraw()` (`:2386`, `:2843`), `startReload()` (`:2896`),
+  `setAds()`/`update()` (`:5192-5193`).
+
+**Re-medido em 29/08** (`BASE=http://127.0.0.1:8144 node tools/eval/vm-quake-scen.mjs`,
+porta própria — nunca a 8123): flash na boca medida (`mouthNDC == vmMuzzleNDC`,
+0,179/−0,099), ADS assentado (`adsF: 1`), e o reload tem **5 fases no transform**
+(`springs.js:196-208`: mergulho/giro → carregador sai 20-45% → entra 45-70% → tapa
+66-74% → ferrolho 80-88%) — "≥ 3 fases visíveis" do V5 está atendido pelo movimento
+da arma.
+
+**O que RESTA do V5 não é este bug:** a *queda de carregador* é invisível porque
+`magDrop` não tem consumidor — nenhuma arma expõe malha de carregador
+(`grep magDrop public/js/game.js public/js/vmattach.js` → só o produtor). Isso é
+lacuna de asset/feature e mora na frente de viewmodel do PR #464 (malhas pagas com
+carregador separado), não numa entrada de P0.
 
 ---
 
@@ -1700,7 +1713,10 @@ régua verde codificando a regra errada. Mutante novo `freio-na-grama` (substitu
 **Melhorias medidas na mesma rodada (pedidos do mesmo relato):** adensamento contra o
 campo aberto (probe de disco livre: bolsões de até **8,6 m de raio**; 2 palafitas + 2 casas
 nos vãos da fileira A + 6 barracos → 361 → **177 células** com ≥ 3 m livres, maior bolsão
-5,3 m e é largo de spawn protegido pelo MAP2B); 12 ratos (cláusula 3–5 → 10–16, pedido
+5,3 m e é largo de spawn protegido pelo MAP2B — **ajustado no dia seguinte pela CTF2**:
+a casa de (−9,6, 21,5) e o barraco de (11,8, 13) tapavam a 2ª rota das bandeiras C e P
+(`piorRotas` 2→1, medido no map-check); a casa virou barraco menor em (−8,4, 21,3) e o
+barraco do P saiu — `piorRotas` de volta a **2** nos 8 pares spawn×bandeira); 12 ratos (cláusula 3–5 → 10–16, pedido
 "bastante ratos"); 4 capivaras de PASSEIO (tipo novo `capivara` no ambientlife, locomoção
 procedural do tatu, nome `capivara-passeio` para a âncora estática da margem continuar
 sendo quem as cláusulas de anatomia medem) + mutantes `capivaras-paradas` e
@@ -1708,7 +1724,11 @@ sendo quem as cláusulas de anatomia medem) + mutantes `capivaras-paradas` e
 (órbita 38 m / y 33) e a Demoiselle do Santos Dumont **de 50 m/raio 86 para 32 m/raio 46**
 — agora cruza o quadro de quem anda na rua.
 
-**Custo declarado:** o adensamento custou +0,4 pp de stuck (3,9 → 4,3 %); o entulho
+**Custo declarado:** o adensamento + a reabertura do corredor da CTF2 custaram stuck:
+3,9 % logo após o realinhamento do entulho → **6,2 %** no estado final (botsim 300 s;
+ainda 11,5 → 6,2 contra a referência quebrada 5,7 — CTF2 é gate, stuck não é). Foi
+tentado e REFUTADO por medição encurtar o colisor do arrimo no pé da rampa leste (o
+maior gancho restante, 62 amostras em (4,−8)): piorou para 8,2 % e voltou. O entulho
 alinhado à parede perde a variação de ângulo de 45° que dava silhueta ao leito; e o freio
 zerado tira a leitura "água funda freia" — se algum dia voltar água funda de verdade, o
 `slowAt` volta com régua própria. **Não verificado:** browser real (a ROTA6 mede o raycast

@@ -907,15 +907,15 @@ export function buildCorrego(scene, T) {
   }
 
   /* ADENSAMENTO contra campo aberto: posições medidas por probe de disco livre,
-     longe de spawn (MAP2B) e fora das lanes de nav — BUG-84. */
+     longe de spawn (MAP2B), fora das lanes de nav e sem tapar a 2ª rota de bandeira
+     (CTF2 mediu: casa em -9.6,21.5 e barraco em 11.8,13 derrubavam piorRotas a 1). */
   casa(-9.7, -18.3, 3.4, 3.8, 2, { baseSuja: true });
-  casa(-9.6, 21.5, 3.6, 4.0, 2, { baseSuja: true });
+  puxadinho(-8.4, 21.3, 2.4, 2.4, 2.55);
   puxadinho(15.6, -19.4, 2.8, 2.4, 2.6);
   puxadinho(17.2, 27.3, 2.6, 2.4, 2.55);
   puxadinho(-7.9, 25.6, 2.4, 2.2, 2.5);
   puxadinho(-11.6, 35.2, 2.6, 2.2, 2.4);
   puxadinho(11.2, 27.5, 2.4, 2.2, 2.5);
-  puxadinho(11.8, 13.0, 2.4, 2.2, 2.5);
 
   /* ─── ENTULHO: o fundo do canal novo somava ~430 m² de chão sem cover (MAP5 a 10,6 m
      de espaçamento, teto 7). Colisor com ≥ 0,60 m úteis conta como prop e é cover de agachado. */
