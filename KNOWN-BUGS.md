@@ -1647,6 +1647,64 @@ mudar.
 
 ## P1 — o jogador vê
 
+### BUG-82 · Córrego: a rota por cima dos barracos não existia (e o forró, a grama e o varal)
+
+**Reportado (28/08/2026, palavras literais do dono jogando a main):**
+
+> *"a rampa por cima dos barracos nao é acessivel aos jogadores"* · *"o barraco tem que dar
+> pra entrar nele e depois pegar a rampa por cima pro outro lado do mapa"* · *"a parte da
+> grama com capivara nao devia ser mais lentra devia poder andar normal e ter mais
+> gramineas"* · *"faltou colocar um forró pisadinha em partes dfo mapa"* · *"os varais nao
+> usam o model glb que temos"*
+
+**A · A rampa não era inacessível: ela NÃO EXISTIA.** A ROTA3 do `eval:corrego-rotas`
+mediu **0** superfícies altas andáveis e desconectadas. Não havia o que destravar — havia
+o que construir. Foi por isso que o BUG-80 fechou sem tocar neste item.
+
+**A travessia alta, construída em 29/08.** Passarela em `z = −11` (entre as pontes de −22
+e 0, para não duplicar rota), tablado a **5,6 m**, rampa externa em cada margem de
+`|x| = 13,6` até `|x| = 5`, e um barraco de passagem com **duas portas** — uma para a rua
+e uma para a rampa.
+
+| medida | valor |
+|---|---|
+| maior degrau ao longo da travessia | **0,163 m** (teto `STEP_H` 0,55) |
+| jogador dirigido pelo `_updatePlayer` | sai de x = −13,4 e chega em **x = 17,9** |
+| pico de altura no percurso | 5,60 m |
+| rota BAIXA no mesmo z, depois da obra | −1,75 m, intacta |
+
+Ela usa o mesmo `groundHeightAt(x, z, yRef)` que o BUG-80 trouxe: a passarela só é chão
+para quem já está em cima; quem anda no canal continua no fundo.
+
+**Dois erros meus, os dois pegos por régua e registrados porque custaram tempo:**
+
+1. A passarela cobria `|x| <= 13,6` e engolia a faixa das rampas — o perfil saía plano em
+   5,60 de ponta a ponta. Corrigido para `|x| <= 5`.
+2. O barraco nasceu a 2,6 m do pé da rampa, deixando **0,42 m** entre a parede e a rampa
+   contra um corpo de **0,38 m de raio** — passagem só no papel. A ROTA3 acusou como ilha
+   de 33,9 m². Afastado para 4,6 m.
+
+**E um erro da própria régua**, que é a lição mais reaproveitável: o flood-fill da ROTA3
+lia `groundHeightAt` **sem `yRef`** e por isso enxergava um precipício de 5,44 m no meio da
+travessia — falso vermelho num mapa multinível. Agora ele carrega a altura de quem anda,
+como o `_updatePlayer` faz. Régua 2.5D não mede mapa de dois andares.
+
+**B · Grama.** O `slowAt` pegava `|x| <= 7` e freava a margem de grama e a capivara, onde
+se anda em terra firme. Passa a pegar só a lâmina d'água (`|x| <= CANAL_X1`). Densidade:
+**26 → 64** tufos.
+
+**C · Forró.** `AMB_LOOPS.forro` novo, gerado por IA
+(`tools/gerar-ambiente-lyria.mjs`, Lyria 3 — obra própria, a troca TOTAL de áudio que o
+dono decidiu em 20/08). 30,8 s, 193 kbps. Duas caixas de som nos becos das margens,
+raio 19 m.
+
+**D · Varal.** `varal_roupas.glb` portado da branch `map2/corrego` (4.677 tris,
+`EXT_texture_webp`), em 5 dos 12 vãos; os outros 7 seguem no plano colorido, que continua
+sendo o fallback quando o acervo não baixou.
+
+**Régua:** `eval:corrego-rotas` ganha a ROTA5 (a travessia existe, é andável, e **não vira
+tampa** da rota baixa — a recíproca importa tanto quanto). Oito mutantes, todos mordendo.
+
 ### BUG-80 · Córrego: a rota baixa é cenário — as pontes barram por baixo e uma rampa não sobe
 
 **Reportado (28/08/2026, palavras literais do dono jogando a MAIN em produção):**

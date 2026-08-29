@@ -49,7 +49,7 @@ const MUT = (args.find((a) => a.startsWith('--mutante=')) || '').split('=')[1] |
 /* Cada mutante aponta a cláusula que ELE tem de acender. `canal-tampado` estava
    registrado na ROTA2 e acendia a ROTA1: sem esta conferência o registro mentiria e a
    ROTA2 ficaria sem prova nenhuma. Foi o próprio autoteste (lei 2) que pegou. */
-const MUTANTES = { 'rampa-plana': 'ROTA1', 'canal-tampado': 'ROTA1', 'canal-ilhado': 'ROTA2', 'ilha-solta': 'ROTA3', 'ponte-macica': 'ROTA4', 'ponte-sumida': 'ROTA4' };
+const MUTANTES = { 'rampa-plana': 'ROTA1', 'canal-tampado': 'ROTA1', 'canal-ilhado': 'ROTA2', 'ilha-solta': 'ROTA3', 'ponte-macica': 'ROTA4', 'ponte-sumida': 'ROTA4', 'passarela-sumida': 'ROTA5', 'passarela-tampa': 'ROTA5' };
 if (MUT && !MUTANTES[MUT]) { console.error(`mutante desconhecido: ${MUT}`); process.exit(2); }
 
 /* Parâmetros do flood-fill: os MESMOS do pickup-check, de propósito. Dois números
@@ -75,6 +75,8 @@ const gh0 = W.groundHeightAt;
 let gh = gh0;
 if (MUT === 'rampa-plana') gh = (x, z, y) => { const h = gh0(x, z, y); const ax = Math.abs(x); return (ax >= 3 && ax <= 5 && h < -0.01) ? -1.75 : h; };
 if (MUT === 'ponte-macica') gh = (x, z, y) => gh0(x, z, undefined);          // ignora o yRef: volta o defeito
+if (MUT === 'passarela-sumida') gh = (x, z, y) => (Math.abs(z + 11) <= 1.25 ? 0 : gh0(x, z, y));
+if (MUT === 'passarela-tampa') gh = (x, z, y) => (Math.abs(z + 11) <= 1.25 && Math.abs(x) <= 5 ? 5.6 : gh0(x, z, y));
 if (MUT === 'ponte-sumida') gh = (x, z, y) => { const h = gh0(x, z, y); return (Math.abs(x) <= 5.2 && [-22,0,22].some(b=>Math.abs(z-b)<=1.6)) ? CANAL_FUNDO : h; };
 if (MUT === 'canal-tampado') gh = (x, z, y) => Math.max(gh0(x, z, y), 0);
 /* canal-ilhado: as rampas somem (a faixa vira passeio plano) e o fundo do canal deixa de
@@ -103,8 +105,13 @@ const GX = (i) => B.minX + i * STEP_G;
 const GZ = (j) => B.minZ + j * STEP_G;
 
 const andavelCache = new Int8Array(nGx * nGz).fill(-1);
-const andavel = (i, j) => {
+const andavel = (i, j, yRef) => {
   if (i < 0 || j < 0 || i >= nGx || j >= nGz) return false;
+  if (yRef !== undefined) {
+    const x = GX(i), z = GZ(j), p = { x, y: gh(x, z, yRef), z };
+    g._collide(p, R_BODY);
+    return Math.abs(p.x - x) < 1e-6 && Math.abs(p.z - z) < 1e-6;
+  }
   const k = gid(i, j);
   if (andavelCache[k] < 0) {
     const x = GX(i), z = GZ(j), p = { x, y: gh(x, z), z };
@@ -114,7 +121,12 @@ const andavel = (i, j) => {
   return andavelCache[k] === 1;
 };
 const altCache = new Float32Array(nGx * nGz).fill(NaN);
-const altura = (i, j) => {
+/* `yRef` NAO e detalhe: o chao do corrego e multinivel (ponte e passarela por cima do
+   canal). Sem passar a altura de quem anda, o flood-fill le sempre a camada de cima e
+   inventa precipicio de 5,4 m no meio da travessia alta — que foi exatamente o falso
+   vermelho da ROTA3 na primeira rodada. O jogo pergunta com p.pos.y; a regua tambem. */
+const altura = (i, j, yRef) => {
+  if (yRef !== undefined) return gh(GX(i), GZ(j), yRef);
   const k = gid(i, j);
   if (Number.isNaN(altCache[k])) altCache[k] = gh(GX(i), GZ(j));
   return altCache[k];
@@ -125,8 +137,8 @@ const altura = (i, j) => {
 const ILHA = { x0: 20, x1: 23, z0: 20, z1: 23, y: 5.0 };
 const naIlha = (i, j) => MUT === 'ilha-solta'
   && GX(i) >= ILHA.x0 && GX(i) <= ILHA.x1 && GZ(j) >= ILHA.z0 && GZ(j) <= ILHA.z1;
-const andavel2 = (i, j) => (naIlha(i, j) ? true : andavel(i, j));
-const altura2 = (i, j) => (naIlha(i, j) ? ILHA.y : altura(i, j));
+const andavel2 = (i, j, yRef) => (naIlha(i, j) ? true : andavel(i, j, yRef));
+const altura2 = (i, j, yRef) => (naIlha(i, j) ? ILHA.y : altura(i, j, yRef));
 
 /* ---- flood-fill a partir dos spawns ---- */
 const alcancado = new Uint8Array(nGx * nGz);
@@ -150,8 +162,8 @@ const alcancado = new Uint8Array(nGx * nGz);
       const a = i + di, b = j + dj;
       if (a < 0 || b < 0 || a >= nGx || b >= nGz) continue;
       const k = gid(a, b);
-      if (alcancado[k] || !andavel2(a, b)) continue;
-      if (Math.abs(altura2(a, b) - y0) > DEGRAU) continue;
+      if (alcancado[k] || !andavel2(a, b, y0)) continue;
+      if (Math.abs(altura2(a, b, y0) - y0) > DEGRAU) continue;
       alcancado[k] = 1; fila.push(a, b);
     }
   }
@@ -245,8 +257,8 @@ for (const r of rampas) infos.push(`  rampa ${r.nome}: degrau máx ${r.degrauMax
         const c = a + di, d = b + dj;
         if (c < 0 || d < 0 || c >= nGx || d >= nGz) continue;
         const kk = gid(c, d);
-        if (visto[kk] || alcancado[kk] || !andavel2(c, d)) continue;
-        if (Math.abs(altura2(c, d) - y) > DEGRAU) continue;
+        if (visto[kk] || alcancado[kk] || !andavel2(c, d, y)) continue;
+        if (Math.abs(altura2(c, d, y) - y) > DEGRAU) continue;
         visto[kk] = 1; fila.push(c, d);
       }
     }
@@ -282,6 +294,29 @@ for (const r of rampas) infos.push(`  rampa ${r.nome}: degrau máx ${r.degrauMax
     const cima = gh(0, zc, 0.15);
     if (cima < 0.1) falhas.push(`ROTA4 a ponte z=${zc} sumiu para quem anda em cima (y=${cima.toFixed(2)}) — o multinível derrubou o tablado`);
   }
+}
+
+/* ═══ ROTA5 — a TRAVESSIA ALTA existe e leva de margem a margem ═══
+   O pedido do dono era "rampa por cima dos barracos... entrar no barraco e pegar a rampa
+   pro outro lado". Na primeira rodada desta régua a ROTA3 mediu ZERO ilha alta: não havia
+   rampa inacessível, havia rampa inexistente. Agora que ela existe, é esta cláusula que
+   impede alguém de removê-la sem perceber. */
+{
+  const PASS_Z = -11, PASS_Y = 5.6, PE = 13.6;
+  let pior = 0, xPior = null, prev = null;
+  for (let x = -PE; x <= PE; x += STEP_G) {
+    const y = gh(x, PASS_Z, PASS_Y + 0.4);
+    if (prev !== null) { const d = Math.abs(y - prev); if (d > pior) { pior = d; xPior = x; } }
+    prev = y;
+  }
+  const alto = gh(0, PASS_Z, PASS_Y + 0.4);
+  const baixo = gh(0, PASS_Z, CANAL_FUNDO);
+  infos.push(`travessia alta (z=${PASS_Z}): topo ${alto.toFixed(2)} m · maior degrau ${pior.toFixed(3)} m · por baixo ${baixo.toFixed(2)} m`);
+  if (alto < PASS_Y - 0.2) falhas.push(`ROTA5 a passarela sumiu: sobre o canal em z=${PASS_Z} o chão alto é ${alto.toFixed(2)} m, esperado ${PASS_Y}`);
+  if (pior > STEP_H) falhas.push(`ROTA5 a travessia alta tem degrau de ${pior.toFixed(2)} m em x=${xPior} — o corpo sobe ${STEP_H} m`);
+  /* A recíproca importa tanto quanto: a passarela não pode virar tampa da rota baixa.
+     É o mesmo defeito que as pontes tinham, e seria burrice reintroduzi-lo por cima. */
+  if (baixo > CANAL_FUNDO + 0.3) falhas.push(`ROTA5 a passarela virou tampa: no fundo do canal em z=${PASS_Z} o chão é ${baixo.toFixed(2)} m, esperado ${CANAL_FUNDO}`);
 }
 
 /* ---- saída ---- */

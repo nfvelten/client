@@ -45,6 +45,11 @@ const RAMPAS = [
 ];
 const RAMPA_X0 = CANAL_X1, RAMPA_X1 = CORREGO_X1;   // 3 → 5
 
+/* TRAVESSIA ALTA (28/08, pedido do dono: "a rampa por cima dos barracos... o barraco tem
+   que dar pra entrar nele e depois pegar a rampa por cima pro outro lado do mapa").
+   z = -11 cai entre as pontes de -22 e 0, entao a rota alta nao duplica a de baixo. */
+const PASS = { z: -11, y: 5.6, meiaL: 1.25, x0: 13.6 };   // x0 = pe da rampa em cada margem
+
 export const CORREGO_PROPS = ['pilha_pneus', 'tires', 'dumpster', 'moto_cg', 'fusca',
   'mesa_guardasol', 'guarda_sol', 'stall', 'arara_roupas', 'caixa_som', 'fav_house',
   /* Kit de favela que estava no disco sem nenhum mapa consumindo. `fav_house` já era
@@ -1071,6 +1076,49 @@ export function buildCorrego(scene, T) {
     }
   }
 
+  /* ═══ TRAVESSIA ALTA: rota vertical que faltava. A altura quem manda e o
+     groundHeightAt; aqui e a geometria e os guarda-corpos. BUG-82. */
+  {
+    const matPass = lam({ map: TEX.wall || T.wall, color: 0x9a8f7e, roughness: .95 });
+    const matGuarda = lam({ color: 0x6a5f52, roughness: .9 });
+    // tablado sobre o canal + as duas rampas (visual; nao colide, igual as rampas do canal)
+    addBoxSB(PASS.x0 * 2, 0.18, PASS.meiaL * 2, matPass, 0, PASS.y - 0.18, PASS.z,
+      { collide: false, skirt: false });
+    for (const lado of [-1, 1]) {
+      const L = PASS.x0 - RAMPA_X1;
+      const hip = Math.hypot(L, PASS.y);
+      addBoxSB(hip, 0.18, PASS.meiaL * 2, matPass, lado * (RAMPA_X1 + PASS.x0) / 2, PASS.y / 2 - 0.09, PASS.z,
+        { collide: false, skirt: false, rz: 0 });
+      // guarda-corpo dos DOIS lados do vao: e ele que impede cair no canal de 5,6 m
+      for (const dz of [-PASS.meiaL, PASS.meiaL]) {
+        addBox(PASS.x0, 0.9, 0.1, matGuarda, lado * PASS.x0 / 2, PASS.y, PASS.z + dz, { skirt: false, cast: false });
+      }
+    }
+    for (const dz of [-PASS.meiaL, PASS.meiaL]) {
+      addBox(RAMPA_X1 * 2, 0.9, 0.1, matGuarda, 0, PASS.y, PASS.z + dz, { skirt: false, cast: false });
+    }
+    /* BARRACO DE PASSAGEM (margem oeste): quatro paredes com VAO DE PORTA no lado da rua.
+       O teto nao colide — o `_collide` so morde entre pos.y+0,3 e pos.y+1,5, e a laje
+       mora em 3,0, entao quem anda dentro passa livre. */
+    /* 4,6 m a oeste do pe da rampa: com 2,6 sobrava vao de 0,42 m contra corpo de 0,38
+       de raio, e a ROTA3 acusou ilha de 33,9 m². Duas portas: rua e rampa. BUG-82. */
+    const bx = -PASS.x0 - 4.6, bz = PASS.z, bw = 4.2, bd = 4.6, bh = 3.0, VAO = 1.5;
+    const matBar = lam({ map: TEX.wall || T.wall, color: 0xb08a6a, roughness: .96 });
+    const paredeComVao = (horiz, cx, cy, cz, comp) => {
+      const meia = (comp - VAO) / 2;
+      for (const s2 of [-1, 1]) {
+        const off = s2 * (VAO + meia) / 2;
+        if (horiz) addBox(meia, bh, 0.16, matBar, cx + off, cy, cz, { skirt: false });
+        else addBox(0.16, bh, meia, matBar, cx, cy, cz + off, { skirt: false });
+      }
+    };
+    paredeComVao(true, bx, 0, bz - bd / 2, bw);
+    paredeComVao(false, bx + bw / 2, 0, bz, bd);
+    addBox(0.16, bh, bd, matBar, bx - bw / 2, 0, bz, { skirt: false });
+    addBox(bw, bh, 0.16, matBar, bx, 0, bz + bd / 2, { skirt: false });
+    addBoxSB(bw + 0.5, 0.2, bd + 0.5, matPass, bx, bh, bz, { collide: false, skirt: false });
+  }
+
   /* ===================== GROUND HEIGHT ===================== */
   function groundHeightAt(x, z, yRef) {
     const ax = Math.abs(x);
@@ -1080,6 +1128,15 @@ export function buildCorrego(scene, T) {
     /* CHAO MULTINIVEL (convencao do map_havan.js): quem pergunta de DENTRO do canal
        recebe o fundo. Sem yRef devolve a camada de cima, como antes. BUG-80. */
     if (ponte && !(yRef !== undefined && yRef < CANAL_FUNDO + 0.9)) return 0.15;
+    /* PASSARELA: so e chao para quem ja esta LA EM CIMA. Mesmo regime da ponte, e por isso
+       ela precisa vir antes de tudo que devolve altura de rua. BUG-82. */
+    if (Math.abs(z - PASS.z) <= PASS.meiaL && ax <= RAMPA_X1 && yRef !== undefined && yRef > PASS.y - 1.6) return PASS.y;
+    /* RAMPAS DA TRAVESSIA: sobem da rua ate a passarela, uma em cada margem, fora do
+       canal. Sem yRef porque nao ha nada por baixo delas. */
+    if (Math.abs(z - PASS.z) <= PASS.meiaL) {
+      const t = (ax - RAMPA_X1) / (PASS.x0 - RAMPA_X1);
+      if (ax > RAMPA_X1 && ax <= PASS.x0) return PASS.y * (1 - t);
+    }
     if (ax <= 5 && Math.abs(z) >= HALF_Z - 6) return 0.05;
     // rampa de acesso: faixa da parede (|x| ∈ [3, 5]) descendo ao longo de z
     if (ax >= RAMPA_X0 && ax <= RAMPA_X1) {
@@ -1367,7 +1424,7 @@ export function buildCorrego(scene, T) {
   const slowAt = (x, z) => Math.abs(z) >= HALF_Z - 6 && Math.abs(x) <= CANAL_X1;
 
   return {
-    root, colliders, occluders, decalSolids: [root], groundHeightAt, slowAt, spawns, sun, hemi, pickups, ctfPoints, ambience, varalGlb,sound:{loops:[{src:AMB_LOOPS.corrego,pos:[0,.3,-37],radius:15,vol:.45},{src:AMB_LOOPS.corrego,pos:[0,.3,37],radius:15,vol:.45},{src:AMB_LOOPS.cidade,pos:[0,3,0],radius:70,vol:.18}],bioma:'favela'}, propEscala,
+    root, colliders, occluders, decalSolids: [root], groundHeightAt, slowAt, spawns, sun, hemi, pickups, ctfPoints, ambience, varalGlb,sound:{loops:[{src:AMB_LOOPS.corrego,pos:[0,.3,-37],radius:15,vol:.45},{src:AMB_LOOPS.corrego,pos:[0,.3,37],radius:15,vol:.45},{src:AMB_LOOPS.cidade,pos:[0,3,0],radius:70,vol:.18},{src:AMB_LOOPS.forro,pos:[-13.6,2.2,-18.4],radius:19,vol:.34},{src:AMB_LOOPS.forro,pos:[13.6,2.2,16.8],radius:19,vol:.30}],bioma:'favela'}, propEscala,
     skyLife,
     update(dt, time) { aguaCorrego.update(dt); skyLife.update(dt, time); },
     waypoints: { nodes, adj }, nearestWaypoint, findPath,
