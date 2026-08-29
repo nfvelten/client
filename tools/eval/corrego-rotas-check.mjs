@@ -41,7 +41,7 @@
      rampa-macica    enche o vão sob a rampa com colisor                    -> ROTA4
 
    Sai 1 se qualquer cláusula reprovar, ou se um mutante NÃO acender cláusula nenhuma. */
-import { MAPS, initTextures, bootGame } from './harness.mjs';
+import { MAPS, initTextures, bootGame, THREE } from './harness.mjs';
 
 const args = process.argv.slice(2);
 const JSON_OUT = args.includes('--json');
@@ -49,7 +49,7 @@ const MUT = (args.find((a) => a.startsWith('--mutante=')) || '').split('=')[1] |
 /* Cada mutante aponta a cláusula que ELE tem de acender. `canal-tampado` estava
    registrado na ROTA2 e acendia a ROTA1: sem esta conferência o registro mentiria e a
    ROTA2 ficaria sem prova nenhuma. Foi o próprio autoteste (lei 2) que pegou. */
-const MUTANTES = { 'rampa-plana': 'ROTA1', 'canal-tampado': 'ROTA1', 'canal-ilhado': 'ROTA2', 'ilha-solta': 'ROTA3', 'ponte-macica': 'ROTA4', 'ponte-sumida': 'ROTA4', 'passarela-sumida': 'ROTA5', 'passarela-tampa': 'ROTA5' };
+const MUTANTES = { 'rampa-plana': 'ROTA1', 'canal-tampado': 'ROTA1', 'canal-ilhado': 'ROTA2', 'ilha-solta': 'ROTA3', 'ponte-macica': 'ROTA4', 'ponte-sumida': 'ROTA4', 'passarela-sumida': 'ROTA5', 'passarela-tampa': 'ROTA5', 'travessia-sem-visual': 'ROTA6', 'travessia-visual-plana': 'ROTA6' };
 if (MUT && !MUTANTES[MUT]) { console.error(`mutante desconhecido: ${MUT}`); process.exit(2); }
 
 /* Parâmetros do flood-fill: os MESMOS do pickup-check, de propósito. Dois números
@@ -317,6 +317,36 @@ for (const r of rampas) infos.push(`  rampa ${r.nome}: degrau máx ${r.degrauMax
   /* A recíproca importa tanto quanto: a passarela não pode virar tampa da rota baixa.
      É o mesmo defeito que as pontes tinham, e seria burrice reintroduzi-lo por cima. */
   if (baixo > CANAL_FUNDO + 0.3) falhas.push(`ROTA5 a passarela virou tampa: no fundo do canal em z=${PASS_Z} o chão é ${baixo.toFixed(2)} m, esperado ${CANAL_FUNDO}`);
+}
+
+/* ═══ ROTA6 — a travessia alta é VISÍVEL: o assoalho desenhado acompanha o chão físico ═══
+   Comprada em 29/08: a ROTA5 estava VERDE e o dono reportou "a rampa de cima ainda é
+   inacessível, tem um bot lá em cima mas nem sei como ele chegou". A régua media a FÍSICA;
+   o defeito era o VISUAL — `addBoxSB` ignorava `rz` e a laje da rampa saía horizontal
+   flutuando a 2,7 m: o bot subia pelo chão invisível, o jogador não via por onde subir.
+   Esta cláusula raycasteia a cena CONSTRUÍDA de cima para baixo ao longo da rota alta e
+   exige superfície desenhada a <= VGAP_MAX do pé de quem anda, em cada amostra. */
+{
+  const PASS_Z = -11, PASS_Y = 5.6, PE = 13.6, VGAP_MAX = 0.35;
+  const ray = new THREE.Raycaster();
+  const DOWN = new THREE.Vector3(0, -1, 0);
+  let piorGap = 0, xGap = null, semHit = 0;
+  for (let x = -PE + 0.4; x <= PE - 0.4; x += 0.6) {
+    const walkY = gh0(x, PASS_Z, PASS_Y + 0.4);
+    ray.set(new THREE.Vector3(x, 25, PASS_Z), DOWN);
+    let hits = ray.intersectObjects(W.root.children, true)
+      .map((h) => h.point.y)
+      .filter((y) => y <= walkY + 0.25);           // guarda-corpo/fios acima não contam
+    if (MUT === 'travessia-sem-visual' && Math.abs(x) > 5) hits = [];
+    if (MUT === 'travessia-visual-plana' && Math.abs(x) > 5) hits = hits.map(() => 2.71);
+    if (!hits.length) { semHit++; if (walkY - (-99) > piorGap) { piorGap = 99; xGap = x; } continue; }
+    const topo = Math.max(...hits);
+    const gap = Math.abs(walkY - topo);
+    if (gap > piorGap) { piorGap = gap; xGap = x; }
+  }
+  infos.push(`travessia visual (z=${PASS_Z}): maior vão pé→assoalho ${piorGap > 90 ? 'SEM ASSOALHO' : piorGap.toFixed(3) + ' m'}${xGap !== null ? ` em x=${xGap.toFixed(1)}` : ''}`);
+  if (semHit > 0) falhas.push(`ROTA6 a rota alta anda no AR: ${semHit} amostra(s) sem nenhuma superfície desenhada sob o pé (z=${PASS_Z})`);
+  else if (piorGap > VGAP_MAX) falhas.push(`ROTA6 o assoalho desenhado está a ${piorGap.toFixed(2)} m do chão físico em x=${xGap.toFixed(1)} (teto ${VGAP_MAX}) — o jogador não vê por onde a travessia sobe`);
 }
 
 /* ---- saída ---- */

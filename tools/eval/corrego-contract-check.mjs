@@ -1,6 +1,7 @@
 /* Contrato mecânico e de fauna do Córrego, medido no mundo real.
 
-   - as duas pontas alagadas reduzem velocidade, pontes e margens secas não;
+   - NADA reduz velocidade (BUG-84, 29/08: o dono pediu duas vezes que a grama das
+     pontas ande normal — as cláusulas antigas exigiam o freio que ele mandou tirar);
    - a capivara mora numa ponta alagada (|z| >= 34);
    - capivara cabe na escala naturalista (comprimento <= 1,85 m), não invade pneus e
      usa tronco/cabeça afunilados contínuos + pernas articuladas (não ovo+caixa+pinos);
@@ -8,7 +9,7 @@
    - o canal tem lâmina rebaixada e duas paredes verticais visíveis de profundidade.
 
    Procedência visual: `tmp/map-alpha61-openrouter-review.json`, corrego, itens 1–5.
-   Mutações: sem-lento | capivara-centro | ratos-parados | capivara-gigante | ratos-ovais
+   Mutações: freio-na-grama | capivara-centro | ratos-parados | capivara-gigante | ratos-ovais
    | capivara-brinquedo | ratos-sem-contexto | canal-sem-profundidade
 
    ── FRENTE B v2.1.0 (plans/13-VISUAL-V2.1.md): fauna GLB + água viva + grama ──
@@ -51,9 +52,10 @@ import { registerFaunaTemplate } from '../../public/js/ambientlife.js';
 import { registerPropTemplate } from '../../public/js/mapprops.js';
 
 const mutante = (process.argv.find((a) => a.startsWith('--mutante=')) || '').split('=')[1] || null;
-const MUTANTES_FALLBACK = ['sem-lento', 'capivara-centro', 'ratos-parados', 'capivara-gigante', 'ratos-ovais',
+const MUTANTES_FALLBACK = ['freio-na-grama', 'capivara-centro', 'ratos-parados', 'capivara-gigante', 'ratos-ovais',
   'capivara-urso', 'capivara-brinquedo', 'capivara-tapir', 'capivara-dois-apoios', 'ratos-clonados',
-  'ratos-sem-contexto', 'ratos-sob-lixo', 'canal-preto', 'canal-sem-profundidade', 'ponte-prancha'];
+  'ratos-sem-contexto', 'ratos-sob-lixo', 'canal-preto', 'canal-sem-profundidade', 'ponte-prancha',
+  'capivaras-paradas', 'sem-capivara-passeio', 'sem-mural-buzeira'];
 const MUTANTES_GLB = ['proxy-volta', 'agua-morta', 'grama-sumiu', 'veg-nao-carrega', 'rampa-vazada'];
 if (mutante && !MUTANTES_FALLBACK.includes(mutante) && !MUTANTES_GLB.includes(mutante)) {
   throw new Error(`mutante desconhecido: ${mutante}`);
@@ -120,7 +122,10 @@ function registrarStubs() {
 /* ══ PASS 1 — SEM templates: proxies procedurais (cláusulas originais) ══ */
 const game = bootGame('corrego', { textures: initTextures(), ctf: true, seed: 13007 });
 const world = game.world;
-const slowAt = mutante === 'sem-lento' ? () => false : world.slowAt;
+/* BUG-84 (29/08): a regra virou — o dono pediu DUAS vezes que a grama das pontas ande
+   normal, e as cláusulas antigas ('alagado lento') exigiam o freio que ele mandou tirar.
+   O mutante reintroduz o freio nas pontas e tem de acender as cláusulas novas. */
+const slowAt = mutante === 'freio-na-grama' ? (x, z) => Math.abs(z) >= 34 : world.slowAt;
 const fauna = [];
 const canal = [], pontesLegiveis = [], profundidadeCanal = [], contextoRatos = [], tabuasPonte = [], colisoresPonte = [];
 world.root.traverse((object) => {
@@ -134,6 +139,15 @@ world.root.traverse((object) => {
 });
 const capivara = fauna.find((object) => object.userData.fauna === 'capivara');
 const ratos = fauna.filter((object) => object.userData.fauna === 'rato');
+/* 29/08 (BUG-84/melhorias): capivaras de PASSEIO são tipo próprio do ambientlife
+   ('capivara-passeio') para a âncora estática da margem continuar sendo quem estas
+   cláusulas de anatomia medem. O mural do Buzeira é malha nomeada, não sorteio de pool. */
+const capivarasPasseio = fauna.filter((object) => object.userData.fauna === 'capivara-passeio');
+let muralBuzeira = null;
+world.root.traverse((object) => { if (object.name === 'mural:buzeira') muralBuzeira = object; });
+if (mutante === 'capivaras-paradas') for (const cap of capivarasPasseio) delete cap.userData.motion;
+if (mutante === 'sem-capivara-passeio') capivarasPasseio.length = 0;
+if (mutante === 'sem-mural-buzeira') muralBuzeira = null;
 if (mutante === 'capivara-centro' && capivara) capivara.position.z = 0;
 if (mutante === 'ratos-parados') for (const rato of ratos) delete rato.userData.motion;
 if (mutante === 'capivara-gigante' && capivara) capivara.scale.multiplyScalar(2.2);
@@ -254,8 +268,8 @@ const trioSemOclusao = ratos.slice(0,3).filter((rato)=>{
 
 const checks = [
   ['slowAt exportado', typeof slowAt === 'function'],
-  ['alagado norte lento', !!slowAt?.(0, -37)],
-  ['alagado sul lento', !!slowAt?.(0, 37)],
+  ['grama/alagado norte anda normal (pedido de 28-29/08)', !slowAt?.(0, -37)],
+  ['grama/alagado sul anda normal (pedido de 28-29/08)', !slowAt?.(0, 37)],
   ['ponte central normal', !slowAt?.(0, 0)],
   ['margem seca normal', !slowAt?.(12, 15)],
   ['capivara na margem alagada', !!capivara && Math.abs(capivara.position.z) >= 34],
@@ -265,7 +279,13 @@ const checks = [
   ['capivara materializa quatro apoios sem oclusão na câmera lateral', apoiosVisiveis === 4],
   ['capivara com olhos/orelhas altos, garupa e contato',
     ['high-eyes','high-ears','raised-rump','contact-shadow'].every((p) => contaCap(p) >= 1)],
-  ['3–5 ratos', ratos.length >= 3 && ratos.length <= 5],
+  ['10–16 ratos ("bastante ratos", pedido de 29/08)', ratos.length >= 10 && ratos.length <= 16],
+  ['>= 3 capivaras de passeio nas laterais/córrego (pedido de 29/08)', capivarasPasseio.length >= 3],
+  ['capivaras de passeio com movimento', capivarasPasseio.length > 0 && capivarasPasseio.every((cap) => cap.userData.motion === 'deterministic-run-idle')],
+  ['mural do Buzeira dedicado (malha mural:buzeira, >= 8 m²)', !!muralBuzeira && (() => {
+    const p = muralBuzeira.geometry?.parameters || {};
+    return (p.width || 0) * (p.height || 0) >= 8;
+  })()],
   ['ratos com movimento', ratos.length > 0 && ratos.every((rato) => rato.userData.motion === 'deterministic-run-idle')],
   ['ratos com orelhas, quatro patas e cauda curva', ratos.length >= 3 && ratos.every(anatomiaRato)],
   ['ratos com corpo de 12–15 cm', ratos.length >= 3 && ratos.every((rato) => rato.userData.bodyLength >= .12 && rato.userData.bodyLength <= .15)],

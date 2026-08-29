@@ -21,19 +21,32 @@ const ASSETS = Object.freeze({
   parrot: 'models/ambient/papagaio_poleiro.glb',
 });
 export const FAVELA_AMBIENCE_ASSETS = Object.freeze(Object.keys(ASSETS));
-const TYPE_ASSET = Object.freeze({ rat: 'rat', pigeon: 'pigeonGround', dog: 'dog', cat: 'cat', chicken: 'chicken', cow: 'cow', armadillo: 'armadillo', cockroach: 'cockroach', parrot: 'parrot' });
-const FAUNA_NAME = Object.freeze({ rat: 'rato', pigeon: 'pomba', dog: 'cachorro', cat: 'gato', chicken: 'galinha', cow: 'vaca', armadillo: 'tatu', cockroach: 'barata', parrot: 'papagaio' });
-const QUADS = new Set(['dog', 'cat', 'chicken', 'cow', 'armadillo']);
+/* capivara ANDANTE, no regime do tatu (GLB estático + locomoção procedural). A âncora
+   da margem segue sendo o placeFauna do mapa; estas passeiam — BUG-84. */
+const TYPE_ASSET = Object.freeze({ rat: 'rat', pigeon: 'pigeonGround', dog: 'dog', cat: 'cat', chicken: 'chicken', cow: 'cow', armadillo: 'armadillo', cockroach: 'cockroach', parrot: 'parrot', capivara: 'capivara' });
+const FAUNA_NAME = Object.freeze({ rat: 'rato', pigeon: 'pomba', dog: 'cachorro', cat: 'gato', chicken: 'galinha', cow: 'vaca', armadillo: 'tatu', cockroach: 'barata', parrot: 'papagaio', capivara: 'capivara-passeio' });
+const QUADS = new Set(['dog', 'cat', 'chicken', 'cow', 'armadillo', 'capivara']);
 const SHOT_REACTION_RADIUS = 13;
 const DOG_IDLE_TIME = 3;
 /* por tipo: duração do susto e velocidade de fuga/caminhada (vaca larga, gato rápido) */
-const ALERT_TIME = Object.freeze({ rat: 2.1, dog: 2.6, cat: 2.4, chicken: 2.8, cow: 3.2, pigeon: 3.2, armadillo: 2.4, cockroach: 1.8, parrot: 1.3 });
+const ALERT_TIME = Object.freeze({ rat: 2.1, dog: 2.6, cat: 2.4, chicken: 2.8, cow: 3.2, pigeon: 3.2, armadillo: 2.4, cockroach: 1.8, parrot: 1.3, capivara: 3.0 });
 const QUAD_SPEED = Object.freeze({
   dog: { walk: 1, flee: 3.2 }, cat: { walk: 1.1, flee: 3.6 }, chicken: { walk: .55, flee: 2.6 }, cow: { walk: .75, flee: 2.4 },
   armadillo: { walk: .4, flee: 1.5 },   // tatu é bicho de passo curto; fuga é um trote rápido
+  capivara: { walk: .5, flee: 2.2 },    // passo de pasto; sai trotando quando leva susto
 });
 
 const loadGLB = (url) => new Promise((resolve, reject) => loader.load(url, resolve, undefined, reject));
+
+/* 1 px branco compartilhado para materiais de fallback (ver nota no _add). */
+let _neutralTex = null;
+function neutralMap() {
+  if (!_neutralTex) {
+    _neutralTex = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
+    _neutralTex.needsUpdate = true;
+  }
+  return _neutralTex;
+}
 
 export async function preloadAmbientLife(ids = FAVELA_AMBIENCE_ASSETS) {
   /* lista vazia vinha de main.js/mapview para os mapas sem `ambience` no registro:
@@ -176,7 +189,7 @@ function normalizeModel(id, model) {
   const size = box.getSize(new THREE.Vector3());
   /* alvo em metros de mundo: altura para bichos que andam de lado pro jogador,
      comprimento para rato (silhueta deitada). Vaca 1,75 / gato 0,48 / galinha 0,5. */
-  const target = { rat: .36, pigeonGround: .29, dog: 1, cat: .48, chicken: .5, cow: 1.75, armadillo: .55, cockroach: .14, parrot: .34 }[id] || .5;
+  const target = { rat: .36, pigeonGround: .29, dog: 1, cat: .48, chicken: .5, cow: 1.75, armadillo: .55, cockroach: .14, parrot: .34, capivara: .58 }[id] || .5;
   const dimension = ['rat', 'armadillo', 'cockroach'].includes(id) ? Math.max(size.x, size.z) : size.y;
   const scale = target / Math.max(.001, dimension);
   // dog: altura 1 m => cernelha ~0,6 (ombro 1,83 de 3,09 de altura no GLB bruto)
@@ -197,7 +210,7 @@ function distanceToSegment(point, start, end) {
 }
 
 class FavelaAmbience {
-  constructor(root, { map, low = false, rats = [], pigeons = [], dogs = [], cats = [], chickens = [], cows = [], armadillos = [], cockroaches = [], parrots = [] }) {
+  constructor(root, { map, low = false, rats = [], pigeons = [], dogs = [], cats = [], chickens = [], cows = [], armadillos = [], cockroaches = [], parrots = [], capivaras = [] }) {
     this.map = map;
     this.low = low;
     this.time = 0;
@@ -226,6 +239,8 @@ class FavelaAmbience {
     armadilloList.forEach((config, index) => this._add('armadillo', config, index));
     cockroachList.forEach((config, index) => this._add('cockroach', config, index));
     parrotList.forEach((config, index) => this._add('parrot', config, index));
+    const capivaraList = low ? capivaras.slice(0, 1) : capivaras;
+    capivaraList.forEach((config, index) => this._add('capivara', config, index));
     this.reset();
   }
 
@@ -256,10 +271,18 @@ class FavelaAmbience {
       animalRoot.add(model);
     } else {
       model = type === 'rat' ? fallbackRat(index) : type === 'dog' ? fallbackDog()
-        : type === 'armadillo' ? fallbackArmadillo() : type === 'cockroach' ? fallbackCockroach()
+        : type === 'armadillo' || type === 'capivara' ? fallbackArmadillo() : type === 'cockroach' ? fallbackCockroach()
         : type === 'parrot' ? fallbackParrot() : fallbackPigeon();
       while (model.children.length) animalRoot.add(model.children[0]);
       model = animalRoot;
+      /* Fallback leva map NEUTRO de 1 px (branco multiplica a cor: visual idêntico) —
+         sem ele o corrego-superficie estoura o teto de materiais sem map (BUG-84). */
+      animalRoot.traverse((object) => {
+        if (object.isMesh && object.material && !object.material.map) {
+          object.material.map = neutralMap();
+          object.material.needsUpdate = true;
+        }
+      });
     }
     animalRoot.traverse((object) => {
       if (!object.isMesh) return;

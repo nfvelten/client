@@ -36,7 +36,10 @@ import { impressao } from './eval/graffiti-fingerprint.mjs';
 
 const BASE = process.env.BASE || 'http://localhost:8123';
 const SAIDA = 'public/js/graffiti_layout.js';
-const MAPAS = ['praca_poderes', 'piscina_treta', 'loja_h', 'ferro_velho', 'quebrada'];
+/* corrego entrou em 29/08 (BUG-84): o layout dele já vivia no graffiti_layout.js mas o
+   gerador não o tinha na lista — `npm run grafite corrego` pulava tudo e, com o parse de
+   preservação falhando, gravava "0 peças" APAGANDO os outros mapas. */
+const MAPAS = ['praca_poderes', 'piscina_treta', 'loja_h', 'ferro_velho', 'quebrada', 'corrego'];
 const ONLY = process.argv[2];
 
 const gRoot = execSync('npm root -g').toString().trim();

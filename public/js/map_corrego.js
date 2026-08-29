@@ -230,7 +230,9 @@ export function buildCorrego(scene, T) {
   function addBoxSB(w, h, d, mat, x, y, z, opts = {}) {
     const geo = aoBoxGeo(w, h, d, { low: LOWQ, base: (onGround(y, h) && !opts.ry) ? undefined : BASE_FLOATING });
     const m = aoMat(mat);
-    _eul.set(opts.rx || 0, opts.ry || 0, 0, 'YXZ');
+    /* rz era ACEITO e IGNORADO (euler fixava 0): a rampa da travessia saiu horizontal
+       flutuando a 2,7 m e o dono reportou a rota alta como inacessível — BUG-84. */
+    _eul.set(opts.rx || 0, opts.ry || 0, opts.rz || 0, 'YXZ');
     _mtx.makeRotationFromEuler(_eul).setPosition(x, y + h / 2, z);
     SB.add(geo, _mtx, m, { cast: opts.cast !== false, receive: true });
     if (onGround(y, h) && opts.skirt !== false) SKIRT.add(x, y, z, w, d, opts.ry || 0);
@@ -882,6 +884,10 @@ export function buildCorrego(scene, T) {
     [-5.4, -27, 4.4, 4.2, 2.8], [5.5, -19, 4.6, 4.4, 3.1],
     [-5.6, 18, 4.5, 4.0, 2.8], [5.3, 24, 4.3, 4.6, 3.2],
     [-5.2, 4.5, 4.4, 4.2, 3.0], [5.45, -34, 4.2, 4.0, 2.8],
+    /* ADENSAMENTO 29/08 ("nao ter tanto campo aberto"): os dois maiores bolsões medidos
+       na beira — (-6,31) tinha 8,6 m de raio livre. Palafita: corpo no alto, pilotis
+       embaixo, o passeio continua passando. */
+    [-5.5, 30.5, 4.4, 4.2, 2.9], [5.45, 11.5, 4.3, 4.2, 3.0],
   ]) {
     const ry = angAnexo(), baseY = 2.2;
     for (const px2 of [-w * .40, w * .40]) for (const pz2 of [-d * .40, d * .40])
@@ -899,6 +905,17 @@ export function buildCorrego(scene, T) {
       addBoxI(0.09, 1.3 + (k & 1) * 0.4, d * 0.62, TEX.wall, x - Math.sign(x) * (w / 2 + 0.06), baseY + 0.4, z + k * 1.2,
         { ry: ry + k * 0.05 });
   }
+
+  /* ADENSAMENTO contra campo aberto: posições medidas por probe de disco livre,
+     longe de spawn (MAP2B) e fora das lanes de nav — BUG-84. */
+  casa(-9.7, -18.3, 3.4, 3.8, 2, { baseSuja: true });
+  casa(-9.6, 21.5, 3.6, 4.0, 2, { baseSuja: true });
+  puxadinho(15.6, -19.4, 2.8, 2.4, 2.6);
+  puxadinho(17.2, 27.3, 2.6, 2.4, 2.55);
+  puxadinho(-7.9, 25.6, 2.4, 2.2, 2.5);
+  puxadinho(-11.6, 35.2, 2.6, 2.2, 2.4);
+  puxadinho(11.2, 27.5, 2.4, 2.2, 2.5);
+  puxadinho(11.8, 13.0, 2.4, 2.2, 2.5);
 
   /* ─── ENTULHO: o fundo do canal novo somava ~430 m² de chão sem cover (MAP5 a 10,6 m
      de espaçamento, teto 7). Colisor com ≥ 0,60 m úteis conta como prop e é cover de agachado. */
@@ -928,19 +945,22 @@ export function buildCorrego(scene, T) {
       addBoxI(1.1 - k * 0.14, 0.3, 0.8 - k * 0.1, matTijoloCru, x + k * 0.06, base + k * 0.3, z - k * 0.05, { ry: ry + k * 0.14 });
     colRot(x, z, 0.62, 0.46, base, base + 0.9, ry);
   }
-  function entulho(x, z, ry, base, h) {
+  function entulho(x, z, ry, base, h, dx = 0.5) {
     addBoxI(1.5, h, 1.2, matEntulho, x, base, z, { ry, collide: true });
-    addBoxI(0.7, 0.5, 0.9, matEntulho, x + 0.5, base + h, z - 0.3, { ry: ry + 0.5 });
+    // caco de cima é VISUAL: no leito ele pende pro lado da PAREDE (dx = sinal de x),
+    // senão invade a lane dos bots que o colisor de baixo acabou de desocupar.
+    addBoxI(0.7, 0.5, 0.9, matEntulho, x + dx, base + h, z - 0.3, { ry: ry + 0.5 });
   }
-  /* NO FUNDO DO CANAL. Encostadas nas paredes (|x| ≥ 1,7) para o corredor central
-     continuar passável, e distribuídas nos 80 m para nenhum quadrante ficar deserto. */
+  /* NO FUNDO DO CANAL, encostado E ALINHADO à parede: peça girada furava a lane de
+     nav em x=±1,4 e atolava bot (BUG-84). Centro 2,35 preserva o cover do MAP5. */
   for (let k = 0; k < 22; k++) {
-    const z = -35 + k * 3.3, lado = k % 2 ? 1 : -1, x = lado * (1.75 + (k % 3) * 0.25);
+    const z = -35 + k * 3.3, lado = k % 2 ? 1 : -1, x = lado * 2.35;
     const base = Math.abs(z) > 32 ? CANAL_FUNDO + (Math.abs(z) - 32) / 3 * 1.8 : CANAL_FUNDO;
     if (Math.abs(z) > 33.5) continue;
-    if (k % 4 === 0) manilha(x, z, angAnexo(), base);
-    else if (k % 4 === 1) entulho(x, z, angAnexo(), base, 0.95 + (k % 3) * 0.2);
-    else if (k % 4 === 2) pilhaTijolo(x, z, angAnexo(), base);
+    const jit = ((k * 37) % 7 - 3) * 0.045;   // ±0,13 rad: vida sem virar diagonal
+    if (k % 4 === 0) manilha(x, z, Math.PI / 2 + jit, base);
+    else if (k % 4 === 1) entulho(x, z, Math.PI / 2 + jit, base, 0.95 + (k % 3) * 0.2, lado * 0.35);
+    else if (k % 4 === 2) pilhaTijolo(x, z, jit, base);
     else tambor(x, z, base);
   }
   /* Pilares das três pontes descendo até o fundo — em foto_001 a passarela se apoia
@@ -1081,19 +1101,39 @@ export function buildCorrego(scene, T) {
   {
     const matPass = lam({ map: TEX.wall.map || T.wall, color: 0x9a8f7e, roughness: .95 });
     const matGuarda = lam({ color: 0x6a5f52, roughness: .9 });
-    // tablado sobre o canal + as duas rampas (visual; nao colide, igual as rampas do canal)
-    addBoxSB(PASS.x0 * 2, 0.18, PASS.meiaL * 2, matPass, 0, PASS.y - 0.18, PASS.z,
+    const matMadeira = lam({ map: TEX.wall.map || T.wall, color: 0x7a5a3a, roughness: .95 });
+    /* Tablado sobre o canal: SÓ a faixa andável (|x| <= RAMPA_X1, é o que o
+       groundHeightAt devolve). A versão anterior cobria |x| <= 13,6 — 8,6 m de
+       assoalho FALSO por margem, em cima da faixa onde a rampa de verdade sobe. */
+    addBoxSB(RAMPA_X1 * 2, 0.18, PASS.meiaL * 2, matPass, 0, PASS.y - 0.18, PASS.z,
       { collide: false, skirt: false });
     for (const lado of [-1, 1]) {
       const L = PASS.x0 - RAMPA_X1;
       const hip = Math.hypot(L, PASS.y);
-      addBoxSB(hip, 0.18, PASS.meiaL * 2, matPass, lado * (RAMPA_X1 + PASS.x0) / 2, PASS.y / 2 - 0.09, PASS.z,
-        { collide: false, skirt: false, rz: 0 });
-      // guarda-corpo dos DOIS lados do vao: e ele que impede cair no canal de 5,6 m
-      for (const dz of [-PASS.meiaL, PASS.meiaL]) {
-        addBox(PASS.x0, 0.9, 0.1, matGuarda, lado * PASS.x0 / 2, PASS.y, PASS.z + dz, { skirt: false, cast: false });
+      /* A laje ACOMPANHA o chão físico: rz negativo desce para a ponta +x na margem
+         leste, espelhado a oeste. Sem isto a rampa flutuava horizontal (BUG-84). */
+      const rz = -lado * Math.atan2(PASS.y, L);
+      addBoxSB(hip, 0.18, PASS.meiaL * 2, matPass, lado * (RAMPA_X1 + PASS.x0) / 2, PASS.y / 2 - 0.18, PASS.z,
+        { collide: false, skirt: false, rz });
+      // mureta baixa acompanhando a rampa, dos dois lados do vao (visual: quem cai da
+      // rampa cai na rua, nao no canal — colisor aqui viraria muro na rua embaixo)
+      for (const dz of [-PASS.meiaL - 0.05, PASS.meiaL + 0.05]) {
+        addBoxSB(hip, 0.55, 0.09, matGuarda, lado * (RAMPA_X1 + PASS.x0) / 2, PASS.y / 2 + 0.28, PASS.z + dz,
+          { collide: false, skirt: false, cast: false, rz });
+      }
+      /* PILARES DE MADEIRA sob a rampa, no vao central e no pe: e o que faz a rampa
+         LER como construcao de favela e nao como prancha solta (foto_004, palafita).
+         Sem colisor: poste fino no meio da rua vira gancho de bot. */
+      for (const t of [0.25, 0.55, 0.85]) {
+        const px = RAMPA_X1 + L * t, py = PASS.y * (1 - t);
+        addBoxSB(0.22, py, 0.22, matMadeira, lado * px, 0, PASS.z - PASS.meiaL + 0.2, { collide: false, skirt: false });
+        addBoxSB(0.22, py, 0.22, matMadeira, lado * px, 0, PASS.z + PASS.meiaL - 0.2, { collide: false, skirt: false });
       }
     }
+    // pilares do tablado descendo ao leito, como os das pontes — SEM colisor: o
+    // leito em z=-11 é lane de bot (BUG-84)
+    for (const px of [-1.5, 1.5]) for (const dz of [-PASS.meiaL + 0.2, PASS.meiaL - 0.2])
+      addBoxSB(0.28, PASS.y - CANAL_FUNDO - 0.18, 0.28, matMadeira, px, CANAL_FUNDO, PASS.z + dz, { collide: false, skirt: false });
     for (const dz of [-PASS.meiaL, PASS.meiaL]) {
       addBox(RAMPA_X1 * 2, 0.9, 0.1, matGuarda, 0, PASS.y, PASS.z + dz, { skirt: false, cast: false });
     }
@@ -1117,6 +1157,23 @@ export function buildCorrego(scene, T) {
     addBox(0.16, bh, bd, matBar, bx - bw / 2, 0, bz, { skirt: false });
     addBox(bw, bh, 0.16, matBar, bx, 0, bz + bd / 2, { skirt: false });
     addBoxSB(bw + 0.5, 0.2, bd + 0.5, matPass, bx, bh, bz, { collide: false, skirt: false });
+    /* MURAL LIBERDADE BUZEIRA, dedicado na parede oeste do barraco de passagem —
+       no pool de lambe ele era sorteio, não mural (BUG-84). Aspecto 1,667 do arquivo. */
+    {
+      const iBz = ((T && T.posterFiles) || []).indexOf('or-mural-buzeira.jpg');
+      const texBz = iBz >= 0 && T.posterImgs ? T.posterImgs[iBz] : null;
+      if (texBz) {
+        // DoubleSide como os murais da piscina: face única some CALADA por backface
+        const mural = new THREE.Mesh(new THREE.PlaneGeometry(4.0, 2.4),
+          lam({ map: texBz, roughness: .92, side: THREE.DoubleSide }));
+        mural.position.set(bx - bw / 2 - 0.10, 1.4, bz);
+        mural.rotation.y = -Math.PI / 2;
+        mural.name = 'mural:buzeira';
+        mural.userData.nonSolidSurface = true;
+        mural.receiveShadow = true;
+        root.add(mural);
+      }
+    }
   }
 
   /* ===================== GROUND HEIGHT ===================== */
@@ -1137,7 +1194,9 @@ export function buildCorrego(scene, T) {
       const t = (ax - RAMPA_X1) / (PASS.x0 - RAMPA_X1);
       if (ax > RAMPA_X1 && ax <= PASS.x0) return PASS.y * (1 - t);
     }
-    if (ax <= 5 && Math.abs(z) >= HALF_Z - 6) return 0.05;
+    /* Ponta plana SÓ na faixa da parede/rampa: dentro do canal manda o assoreamento
+       gradual, que é o que o visual desenha — o 0,05 desde |z|=34 ilhava o leito sul (BUG-84). */
+    if (ax <= 5 && ax >= CANAL_X1 && Math.abs(z) >= HALF_Z - 6) return 0.05;
     // rampa de acesso: faixa da parede (|x| ∈ [3, 5]) descendo ao longo de z
     if (ax >= RAMPA_X0 && ax <= RAMPA_X1) {
       for (const r of RAMPAS) {
@@ -1378,6 +1437,25 @@ export function buildCorrego(scene, T) {
       { pos: [-16.95, groundHeightAt(-16.95, -2.85), -2.85], to: [-17.55, groundHeightAt(-17.55, -3.35), -3.35], phase: 1.37 },
       { pos: [-17.35, groundHeightAt(-17.35, -1.95), -1.95], to: [-18.05, groundHeightAt(-18.05, -1.5), -1.5], phase: 2.54 },
       { pos: [17.5, groundHeightAt(17.5, 16.6), 16.6], to: [18.25, groundHeightAt(18.25, 17.4), 17.4], phase: 3.2 },
+      /* "bastante ratos" (29/08): margem, leito e becos — o trio de contexto da manilha
+         continua sendo os TRÊS PRIMEIROS da lista (o contrato mede ratos.slice(0,3)). */
+      { pos: [-1.8, CANAL_FUNDO, -19.5], to: [-1.2, CANAL_FUNDO, -17.8], phase: .8 },
+      { pos: [1.9, CANAL_FUNDO, 7.6], to: [1.3, CANAL_FUNDO, 9.4], phase: 4.1 },
+      { pos: [-6.2, groundHeightAt(-6.2, 12.4), 12.4], to: [-6.6, groundHeightAt(-6.6, 14.1), 14.1], phase: 2.9 },
+      { pos: [6.3, groundHeightAt(6.3, -24.6), -24.6], to: [6.7, groundHeightAt(6.7, -23.2), -23.2], phase: 5.3 },
+      { pos: [13.4, groundHeightAt(13.4, 5.2), 5.2], to: [13.9, groundHeightAt(13.9, 6.8), 6.8], phase: 1.9 },
+      { pos: [-13.5, groundHeightAt(-13.5, -30.4), -30.4], to: [-13.1, groundHeightAt(-13.1, -28.9), -28.9], phase: 3.7 },
+      { pos: [20.6, groundHeightAt(20.6, 29.5), 29.5], to: [20.1, groundHeightAt(20.1, 31.2), 31.2], phase: .5 },
+      { pos: [-20.4, groundHeightAt(-20.4, 8.6), 8.6], to: [-20.9, groundHeightAt(-20.9, 10.1), 10.1], phase: 4.8 },
+    ],
+    /* capivaras PASSEANDO (29/08): "a capivara devia andar pelo corrego/mapa e por mais
+       capivaras nas laterais". A âncora da margem alagada continua estática (contrato);
+       estas patrulham grama, passeio e laterais com a locomoção procedural do tatu. */
+    capivaras: [
+      { pos: [-4.2, groundHeightAt(-4.2, 33.5), 33.5], to: [-3.9, groundHeightAt(-3.9, 36.6), 36.6], phase: .4 },
+      { pos: [4.1, groundHeightAt(4.1, -34.2), -34.2], to: [3.7, groundHeightAt(3.7, -36.6), -36.6], phase: 2.1 },
+      { pos: [-6.4, groundHeightAt(-6.4, -20), -20], to: [-6.1, groundHeightAt(-6.1, -14.5), -14.5], phase: 3.6 },
+      { pos: [6.4, groundHeightAt(6.4, 10.5), 10.5], to: [6.7, groundHeightAt(6.7, 16), 16], phase: 5.0 },
     ],
     /* vida 1: barata de esgoto na margem do córrego (fauna 2, Mint + dart do rato) */
     cockroaches: [
@@ -1405,12 +1483,23 @@ export function buildCorrego(scene, T) {
       { pos: [-17, 19, 14], scale: .9, phase: 5.6 },
       { pos: [10, 16, 24], scale: 1, phase: 2.5 },
       { pos: [-11, 23, 31], scale: .88, phase: 6.2 },
+      // "mais pipas" (29/08): mais quatro, mais baixas — pipa a 14-16 m entra no quadro
+      // de quem anda na rua, as de 20+ só aparecem pra quem olha pra cima
+      { pos: [8, 14, -33], scale: 1.15, phase: .9 },
+      { pos: [-13, 15, 2], scale: 1.05, phase: 2.0 },
+      { pos: [18, 16, 20], scale: .92, phase: 3.9 },
+      { pos: [-7, 14.5, -6], scale: 1.1, phase: 5.1 },
     ],
-    helicopters: [{ center: [0, 41, 0], radius: 52, speed: .13, phase: 2.1 }],
+    // 2º heli em orbita menor e mais baixa, defasado do 1º ("mais helicopteros", 29/08)
+    helicopters: [
+      { center: [0, 41, 0], radius: 52, speed: .13, phase: 2.1 },
+      { center: [8, 33, 6], radius: 38, speed: .11, phase: 5.2 },
+    ],
     // padre no balao: deriva alta e lenta, fora do raio do heli para os dois nao colarem
     balloons: [{ center: [0, 58, -6], radius: 74, speed: .028, phase: 1.2, scale: 1 }],
-    // Demoiselle de 1907: orbita ampla, mais baixa e mais rapida que o balao
-    demoiselles: [{ center: [0, 50, 0], radius: 86, speed: .084, phase: 3.8 }],
+    /* Demoiselle de 1907 MAIS PERTO (29/08, "e o santos dumont"): a 50 m de altura e raio
+       86 ela era um risco no céu; a 32 m / raio 46 o avião cruza o quadro de quem anda. */
+    demoiselles: [{ center: [0, 32, 0], radius: 46, speed: .084, phase: 3.8 }],
     // araras: a presença aérea que a v2.1 tirou, agora com asa que bate de verdade
     birds: [
       { center: [-4, 27, -8], radius: 26, speed: .30, phase: 0, scale: 1 },
@@ -1419,9 +1508,9 @@ export function buildCorrego(scene, T) {
     ],
   });
 
-  /* So a LAMINA D'AGUA freia (|x| <= CANAL_X1). Antes pegava ate |x| <= 7 e engolia a
-     margem de grama e a capivara, onde se anda em terra firme. BUG-81. */
-  const slowAt = (x, z) => Math.abs(z) >= HALF_Z - 6 && Math.abs(x) <= CANAL_X1;
+  /* SEM FREIO NENHUM: o resto do freio pegava as pontas com grama e capivara, e o
+     dono pediu duas vezes que ande normal (BUG-84). Exportada: o contrato a declara. */
+  const slowAt = () => false;
 
   return {
     root, colliders, occluders, decalSolids: [root], groundHeightAt, slowAt, spawns, sun, hemi, pickups, ctfPoints, ambience, varalGlb,sound:{loops:[{src:AMB_LOOPS.corrego,pos:[0,.3,-37],radius:15,vol:.45},{src:AMB_LOOPS.corrego,pos:[0,.3,37],radius:15,vol:.45},{src:AMB_LOOPS.cidade,pos:[0,3,0],radius:70,vol:.18},{src:AMB_LOOPS.forro,pos:[-13.6,2.2,-18.4],radius:19,vol:.34},{src:AMB_LOOPS.forro,pos:[13.6,2.2,16.8],radius:19,vol:.30}],bioma:'favela'}, propEscala,

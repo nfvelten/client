@@ -1647,6 +1647,79 @@ mudar.
 
 ## P1 — o jogador vê
 
+### ~~BUG-84 · Córrego: a travessia era invisível, o bot travava no entulho do leito e a grama das pontas ainda freava~~ · RESOLVIDO 29/08
+
+**Reportado (29/08/2026, palavras literais do dono jogando o preview alpha.192):**
+
+> *"a rampa de cima que combinamos ainda é inacessivel, tem um bot la em cima mas nem sei
+> como ele chegou"* · *"tem um bot preso num canto sem conseguir sair"* · *"o mural que
+> pedimos do buzeira nao está la"* · *"a grama dos dois pontos do crrego ainda está lenta"*
+
+Conferido primeiro que o preview servia o branch atual (alpha.192 **com** a travessia no
+`map_corrego.js` publicado) — os relatos valem contra o código de hoje, não contra deploy velho.
+
+**A · Travessia "inacessível": a ROTA5 estava VERDE e o dono certo — a régua media a
+física, o defeito era o VISUAL.** `addBoxSB` aceitava `rz` e o **ignorava** (o euler fixava
+o terceiro eixo em 0, `map_corrego.js`), então a laje da rampa saía **horizontal, flutuando
+a 2,7 m**; e o tablado visual cobria `|x| <= 13,6` quando o andável é `|x| <= 5` — 8,6 m de
+assoalho falso por margem. O bot subia pelo chão invisível (`groundHeightAt` sempre teve a
+rampa); o jogador não via por onde subir. Conserto: `rz` passa pelo euler, laje inclinada no
+ângulo da rampa física, tablado do tamanho andável, mureta acompanhando e pilares de madeira
+(palafita) para a rampa ler como construção.
+
+| | antes | depois |
+|---|---|---|
+| maior vão pé→assoalho desenhado na rota alta | **2,595 m** | **0,017 m** |
+
+**Régua nova: ROTA6** no `eval:corrego-rotas` — raycast de cima para baixo na cena
+CONSTRUÍDA ao longo da rota alta; exige superfície desenhada a ≤ 0,35 m do pé em cada
+amostra. Mutantes `travessia-sem-visual` (28 amostras no ar) e `travessia-visual-plana`
+(vão 2,63 m) acendem só ela. É o corolário da lei 1 por escrito: régua verde + dono
+insistindo = régua medindo a coisa errada (física ≠ o que se vê).
+
+**B · Bot preso: entulho girado do leito furava a lane de navegação.** As lanes do canal
+correm em x = ±1,4 (inflação 0,3); peça girada a ~45° centrada em |x| = 1,75–2,25 tinha
+AABB até |x| = 1,0 — nó da lane bloqueado, aresta quebrada, bot raspando na pedra.
+Diagnóstico por A/B: botsim 180 s × 3 sementes, córrego **stuck 11,5 %** vs quebrada 5,7 %;
+com o entulho removido (mutação diagnóstica) caía a 5,1 % — causa confirmada. Conserto SEM
+perder o cover do MAP5: as 22 peças continuam, centro fixo em |x| = 2,35 e eixo longo
+**paralelo à parede** (jitter ±0,13 rad). Depois: **stuck 3,9 %** (4,3 % após o
+adensamento de barracos — ainda melhor que a referência).
+
+**C · Mural do Buzeira: existia só no POOL de lambe (chance 12) — sorteio não é mural.**
+Dedicado agora: malha `mural:buzeira` (4,0 × 2,4 m, aspecto 1,667 do arquivo) na parede
+oeste do barraco de passagem da travessia, de frente para a rua do spawn oeste. Cláusula
+nova no `corrego-contract-check` + mutante `sem-mural-buzeira`.
+
+**D · Grama lenta: o freio que sobrou do BUG-82 pegava exatamente as pontas assoreadas**
+(`|z| >= HALF_Z − 6 && |x| <= CANAL_X1`) — onde moram a grama e as capivaras. O dono pediu
+duas vezes (28 e 29/08); a regra virou: `slowAt = () => false` (nada freia no mapa). As
+cláusulas do contrato que EXIGIAM o freio ("alagado lento") foram invertidas — caso BUG-06:
+régua verde codificando a regra errada. Mutante novo `freio-na-grama` (substitui `sem-lento`).
+
+**Melhorias medidas na mesma rodada (pedidos do mesmo relato):** adensamento contra o
+campo aberto (probe de disco livre: bolsões de até **8,6 m de raio**; 2 palafitas + 2 casas
+nos vãos da fileira A + 6 barracos → 361 → **177 células** com ≥ 3 m livres, maior bolsão
+5,3 m e é largo de spawn protegido pelo MAP2B); 12 ratos (cláusula 3–5 → 10–16, pedido
+"bastante ratos"); 4 capivaras de PASSEIO (tipo novo `capivara` no ambientlife, locomoção
+procedural do tatu, nome `capivara-passeio` para a âncora estática da margem continuar
+sendo quem as cláusulas de anatomia medem) + mutantes `capivaras-paradas` e
+`sem-capivara-passeio`; céu: 11 pipas (4 novas mais baixas, 14–16 m), 2º helicóptero
+(órbita 38 m / y 33) e a Demoiselle do Santos Dumont **de 50 m/raio 86 para 32 m/raio 46**
+— agora cruza o quadro de quem anda na rua.
+
+**Custo declarado:** o adensamento custou +0,4 pp de stuck (3,9 → 4,3 %); o entulho
+alinhado à parede perde a variação de ângulo de 45° que dava silhueta ao leito; e o freio
+zerado tira a leitura "água funda freia" — se algum dia voltar água funda de verdade, o
+`slowAt` volta com régua própria. **Não verificado:** browser real (a ROTA6 mede o raycast
+da cena em node; o quadro servido não foi olhado nesta máquina) e o custo de draw das
+capivaras/ratos novos em GPU fraca.
+
+**Réguas:** `eval:corrego-rotas` (ROTA6, 10 mutantes no total) ·
+`corrego-contract-check` (42 cláusulas, mutantes `freio-na-grama`, `capivaras-paradas`,
+`sem-capivara-passeio`, `sem-mural-buzeira`) · botsim 180 s (stuck% córrego, referência
+quebrada no mesmo instrumento).
+
 ### ~~BUG-83 · "A ARENA NÃO ABRIU": material no slot de textura~~ · RESOLVIDO 29/08
 
 **Reportado (29/08/2026):** *"preview ta dando erro"* — tela `A ARENA NÃO ABRIU`,
