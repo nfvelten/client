@@ -1647,6 +1647,38 @@ mudar.
 
 ## P1 — o jogador vê
 
+### ~~BUG-83 · "A ARENA NÃO ABRIU": material no slot de textura~~ · RESOLVIDO 29/08
+
+**Reportado (29/08/2026):** *"preview ta dando erro"* — tela `A ARENA NÃO ABRIU`,
+código `A2C39B90`.
+
+**Regressão minha, do BUG-82.** `map_corrego.js` passou `TEX.wall` — que é um
+**MATERIAL** (`TEX.wall = lam({ map: load(...) })`, linha 114) — para o slot `map:` de
+outro material. A forma certa, que a linha 140 do mesmo arquivo já usava, é `TEX.wall.map`.
+
+O three aceita calado na montagem e quebra no primeiro quadro, dentro do shader:
+
+```
+ERROR: 0:396: 'uvundefined' : undeclared identifier
+TypeError: Cannot read properties of undefined (reading 'elements')
+  at Matrix3.copy → refreshTransformUniform
+```
+
+**Por que os portões estavam VERDES.** `check:deploy` deu **35/35** e o `smoke` do CI
+passou — nenhum dos dois abre o córrego. O smoke carrega o menu e a rota padrão; o
+`portao` (que abriria mapa) não é required e ainda estava `pending` quando o dono viu.
+Régua que não visita o mapa não mede o mapa.
+
+**Reprodução:** `npm run dev` + Playwright em `/?debug=1&auto=P,mst&map=corrego` →
+`window.__game` nunca existe, `pageerror` com a mensagem acima. Depois do conserto,
+**os 13 mapas** sobem com `game=SIM` e **zero** erro de console.
+
+**Régua nova:** `eval:mattex` (`tools/eval/material-textura-check.mjs`), no `check:fast`
+**e** no `check:deploy`. MATTEX1 varre os 12 slots de textura de todo material dos 13
+mapas — 2.541 materiais — e cobra `isTexture`. É node puro: o defeito nasce na MONTAGEM,
+o shader é só onde ele aparece. Verificado que ela reprova o defeito ORIGINAL, não só o
+mutante sintético `material-no-map`.
+
 ### BUG-82 · Córrego: a rota por cima dos barracos não existia (e o forró, a grama e o varal)
 
 **Reportado (28/08/2026, palavras literais do dono jogando a main):**

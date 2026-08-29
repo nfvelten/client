@@ -1079,7 +1079,7 @@ export function buildCorrego(scene, T) {
   /* ═══ TRAVESSIA ALTA: rota vertical que faltava. A altura quem manda e o
      groundHeightAt; aqui e a geometria e os guarda-corpos. BUG-82. */
   {
-    const matPass = lam({ map: TEX.wall || T.wall, color: 0x9a8f7e, roughness: .95 });
+    const matPass = lam({ map: TEX.wall.map || T.wall, color: 0x9a8f7e, roughness: .95 });
     const matGuarda = lam({ color: 0x6a5f52, roughness: .9 });
     // tablado sobre o canal + as duas rampas (visual; nao colide, igual as rampas do canal)
     addBoxSB(PASS.x0 * 2, 0.18, PASS.meiaL * 2, matPass, 0, PASS.y - 0.18, PASS.z,
@@ -1103,7 +1103,7 @@ export function buildCorrego(scene, T) {
     /* 4,6 m a oeste do pe da rampa: com 2,6 sobrava vao de 0,42 m contra corpo de 0,38
        de raio, e a ROTA3 acusou ilha de 33,9 m². Duas portas: rua e rampa. BUG-82. */
     const bx = -PASS.x0 - 4.6, bz = PASS.z, bw = 4.2, bd = 4.6, bh = 3.0, VAO = 1.5;
-    const matBar = lam({ map: TEX.wall || T.wall, color: 0xb08a6a, roughness: .96 });
+    const matBar = lam({ map: TEX.wall.map || T.wall, color: 0xb08a6a, roughness: .96 });
     const paredeComVao = (horiz, cx, cy, cz, comp) => {
       const meia = (comp - VAO) / 2;
       for (const s2 of [-1, 1]) {
