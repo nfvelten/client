@@ -1806,7 +1806,9 @@ export function buildBrasilia(scene, T) {
 
   /* Padre no balao (skylife.js): deriva alta, fora do miolo jogavel. O balao e o
      unico prop de ceu deste mapa — ver docs/SKYLIFE.md. */
-  const skyLife = createSkyLife(root, { map: 'praca_poderes', low: LOWQ, balloons: [{ center: [0, 78, -20], radius: 120, speed: .022, phase: 0.4 }] });
+  const skyLife = createSkyLife(root, { map: 'praca_poderes', low: LOWQ, balloons: [{ center: [0, 78, -20], radius: 120, speed: .022, phase: 0.4 }],
+    // Demoiselle de 1907: orbita ampla, mais baixa e mais rapida que o balao
+    demoiselles: [{ center: [0, 66, 0], radius: 132, speed: .075, phase: 3.4 }] });
 
   return {
     skyLife,

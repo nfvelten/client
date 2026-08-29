@@ -18,11 +18,14 @@ export const SKY_BIRD_ASSET = 'models/ambient/arara_voo.glb';
 /* Padre no balao: prop de ceu do folclore urbano brasileiro, figura generica de desenho.
    4.465 triangulos, Draco + WebP — cabe no orcamento de decoracao. docs/SKYLIFE.md. */
 export const SKY_BALAO_ASSET = 'models/ambient/padre_balao.glb';
+/* Demoiselle do Santos Dumont: 1907, a primeira decolagem publica. 6.323 tris. */
+export const SKY_DEMO_ASSET = 'models/ambient/demoiselle_voo.glb';
 const _birdLoader = new GLTFLoader();
 const _ambCache = new Map();
 let _birdTemplate = null;
 let _birdPromise = null;
 let _balaoTemplate = null;
+let _demoTemplate = null;
 
 /* Memoiza a PROMESSA por URL, nao so o resultado: o dedup do FileLoader trava o 2o
    consumidor, e foi por isso que o caminho da arara ja fazia assim. */
@@ -42,6 +45,11 @@ function carregaAmbiente(url, rotulo) {
   });
   _ambCache.set(url, pr);
   return pr;
+}
+
+export function preloadSkyDemo() {
+  if (_demoTemplate) return Promise.resolve(_demoTemplate);
+  return carregaAmbiente(SKY_DEMO_ASSET, 'demoiselle').then((cena) => { _demoTemplate = cena; return cena; });
 }
 
 export function preloadSkyBalao() {
@@ -82,7 +90,8 @@ const BIRD_LEN = 1.05;   // envergadura ~0,9 m; arara-canindé real tem 0,85-1,0
 const KITE_H = 1.6;
 const HELI_H = 3.4;      // altura do rotor ao trem; comprimento sai ~10 m pela proporção do GLB
 const PLANE_H = 2.2;
-const BALAO_H = 4.2;     // cacho + figura: o cacho domina, a figura e ~1/3 da altura
+const BALAO_H = 4.2;     // cacho + figura
+const DEMO_L = 7.2;      // envergadura do Demoiselle real: 5,1 m; 7,2 le melhor de longe     // cacho + figura: o cacho domina, a figura e ~1/3 da altura
 
 /* Proxies para quando o GLB não carrega: mesmos NOMES DE NÓ do modelo real, para a
    régua medir a mesma mecânica nos dois caminhos. */
@@ -223,7 +232,7 @@ function marcarCeu(object, tipo) {
 }
 
 export class SkyLife {
-  constructor(root, { map = '', low = false, kites = [], helicopters = [], planes = [], birds = [], balloons = [] } = {}) {
+  constructor(root, { map = '', low = false, kites = [], helicopters = [], planes = [], birds = [], balloons = [], demoiselles = [] } = {}) {
     this.map = map;
     this.time = 0;
     this.items = [];
@@ -231,6 +240,7 @@ export class SkyLife {
     this.birdConfigs = low ? birds.slice(0, Math.ceil(birds.length / 2)) : birds;
     // 1 balao por mapa ja e presenca; em low fica 1 tambem (o cacho e o que se ve de longe)
     this.balaoConfigs = low ? balloons.slice(0, 1) : balloons;
+    this.demoConfigs = low ? demoiselles.slice(0, 1) : demoiselles;
     // LOWQ corta o enxame, não o tipo (ver docs/SKYLIFE.md § Escalas)
     const kiteList = low ? kites.filter((_, i) => i % 2 === 0) : kites;
     const planeList = low ? [] : planes;
@@ -251,6 +261,10 @@ export class SkyLife {
     if (this.balaoConfigs.length) espera.push(preloadSkyBalao().then(() => {
       if (this._disposed) return;
       this.balaoConfigs.forEach((config, index) => this.root.add(this._addBalao(config, index).root));
+    }));
+    if (this.demoConfigs.length) espera.push(preloadSkyDemo().then(() => {
+      if (this._disposed) return;
+      this.demoConfigs.forEach((config, index) => this.root.add(this._addDemo(config, index).root));
     }));
     this.ready = espera.length
       ? Promise.all(espera).then(() => { if (!this._disposed) this.update(1e-6, 0); return this; })
@@ -371,6 +385,48 @@ export class SkyLife {
     return item;
   }
 
+  _addDemo(config, index) {
+    const { center = [0, 44, 0], radius = 80, speed = .09, phase = 0, scale = 1 } = config;
+    let model = null;
+    if (_demoTemplate) {
+      model = _demoTemplate.clone(true);
+      model.updateMatrixWorld(true);
+      const box = new THREE.Box3().setFromObject(model);
+      const comp = Math.max(box.max.x - box.min.x, box.max.z - box.min.z) || 1;
+      model.scale.setScalar((DEMO_L * scale) / comp);
+      model.position.y -= (box.max.y + box.min.y) / 2 * model.scale.y;
+    } else {
+      model = proxyPlane();
+      model.scale.setScalar(scale * 1.4);
+    }
+    const group = new THREE.Group();
+    group.name = `demoiselle:${this.map}:${index}`;
+    group.add(model);
+    marcarCeu(group, 'demoiselle');
+    const item = {
+      tipo: 'demoiselle', root: group, model, usouGlb: !!_demoTemplate, phase,
+      mixer: null, center: new THREE.Vector3(center[0], center[1], center[2]), radius, speed,
+    };
+    if (_demoTemplate && model.animations !== undefined) item.clips = _demoTemplate.animations || [];
+    this.items.push(item);
+    return item;
+  }
+
+  _updateDemo(item, t) {
+    /* Orbita ampla e lenta: aviao de 1907 voava a ~50 km/h, entao velocidade angular
+       baixa e raio grande — nada de caca fazendo curva fechada sobre a favela. */
+    const a = t * item.speed + item.phase;
+    item.root.position.set(
+      item.center.x + Math.cos(a) * item.radius,
+      item.center.y + Math.sin(a * .55) * 2.6,
+      item.center.z + Math.sin(a) * item.radius,
+    );
+    // nariz na tangente + inclinacao para DENTRO da curva, como o heli ja faz
+    item.root.rotation.y = -a;
+    item.root.rotation.z = .12;
+    item.root.rotation.x = Math.sin(a * .55) * .05;
+  }
+
   _updateBalao(item, t) {
     /* Balao nao voa: ele DERIVA. Orbita muito lenta, subida/descida de periodo longo e
        um giro proprio dessincronizado — helice nenhuma, so o vento. */
@@ -423,6 +479,7 @@ export class SkyLife {
       else if (item.tipo === 'aviao') this._updatePlane(item, dt);
       else if (item.tipo === 'arara') this._updateBird(item, t);
       else if (item.tipo === 'balao') this._updateBalao(item, t);
+      else if (item.tipo === 'demoiselle') this._updateDemo(item, t, dt);
     }
   }
 

@@ -245,7 +245,9 @@ export function buildAtacadao(scene, T) {
 
   /* Padre no balao (skylife.js): deriva alta, fora do miolo jogavel. O balao e o
      unico prop de ceu deste mapa — ver docs/SKYLIFE.md. */
-  const skyLife = createSkyLife(root, { map: 'atacadao_treta', low: false, balloons: [{ center: [0, 60, 0],   radius: 82,  speed: .027, phase: 0.9 }] });
+  const skyLife = createSkyLife(root, { map: 'atacadao_treta', low: false, balloons: [{ center: [0, 60, 0],   radius: 82,  speed: .027, phase: 0.9 }],
+    // Demoiselle de 1907: orbita ampla, mais baixa e mais rapida que o balao
+    demoiselles: [{ center: [0, 51, 0], radius: 92, speed: .082, phase: 2.9 }] });
 
   return {
     skyLife,

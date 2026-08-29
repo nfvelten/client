@@ -500,7 +500,10 @@ export function initTextures() {
 
   // --- poster art (public/posters): pool satírico; personagens e marcas protegidas não entram.
   // Dimensões/aspecto reproduzidos por `node tools/eval/poster-aspect-check.mjs --json`.
+  /* Mural Liberdade Buzeira (arte de Emerson Garrido): foto de muro inteiro, entra como
+     mural e nao como lambe. Aspecto 1,667 medido no arquivo. */
   const POSTER_FILES = [
+    ['or-mural-buzeira.jpg', 1.667, 1.0],
     ['despisque-leao.jpg', 0.86, 1.2], // o par do meme (leão 'despisque') — voltou junto, pedido de 06/08
     ['New Project (1).png', 0.5625],
     ['New Project (2).png', 0.5625], ['New Project (3).png', 0.5625],

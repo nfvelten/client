@@ -1594,7 +1594,9 @@ export function buildQuebrada(scene, T) {
 
   /* Padre no balao (skylife.js): deriva alta, fora do miolo jogavel. O balao e o
      unico prop de ceu deste mapa — ver docs/SKYLIFE.md. */
-  const skyLife = createSkyLife(root, { map: 'quebrada', low: LOWQ, balloons: [{ center: [0, 56, -8],  radius: 72,  speed: .031, phase: 1.6 }] });
+  const skyLife = createSkyLife(root, { map: 'quebrada', low: LOWQ, balloons: [{ center: [0, 56, -8],  radius: 72,  speed: .031, phase: 1.6 }],
+    // Demoiselle de 1907: orbita ampla, mais baixa e mais rapida que o balao
+    demoiselles: [{ center: [0, 48, 0], radius: 82, speed: .088, phase: 5.5 }] });
 
   return {
     skyLife,

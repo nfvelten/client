@@ -251,17 +251,17 @@ The registry, generated from the `MAPS` of `public/js/maps.js`:
 
 | Id | Menu name | Opens in | File in `public/js/` | Lines |
 |---|---|---|---|---:|
-| `praca_poderes` | Praça dos Três Poderes | rounds | `map_brasilia.js` | 1,837 |
-| `piscina_treta` | Piscina da Treta | rounds | `map_piscina.js` | 817 |
-| `loja_h` | Loja H (Estacionamento) | **capture** | `map_havan.js` | 1,971 |
-| `ferro_velho` | Ferro Velho do Zé | **capture** | `map_ferrovelho.js` | 1,895 |
-| `quebrada` | Quebrada (Rua do Baile) | **capture** | `map_quebrada.js` | 1,606 |
-| `corrego` | Córrego (Favela de SP) | **capture** | `map_corrego.js` | 1,356 |
+| `praca_poderes` | Praça dos Três Poderes | rounds | `map_brasilia.js` | 1,839 |
+| `piscina_treta` | Piscina da Treta | rounds | `map_piscina.js` | 819 |
+| `loja_h` | Loja H (Estacionamento) | **capture** | `map_havan.js` | 1,973 |
+| `ferro_velho` | Ferro Velho do Zé | **capture** | `map_ferrovelho.js` | 1,897 |
+| `quebrada` | Quebrada (Rua do Baile) | **capture** | `map_quebrada.js` | 1,608 |
+| `corrego` | Córrego (Favela de SP) | **capture** | `map_corrego.js` | 1,377 |
 | `posto_treta` | Posto da Treta | **capture** | `map_posto.js` | 489 |
 | `upa_24h` | UPA 24h da Treta | **capture** | `map_upa.js` | 288 |
 | `obras_prefeitura` | Obras da Prefeitura | **capture** | `map_obras.js` | 240 |
-| `atacadao_treta` | Atacadão da Treta | **capture** | `map_atacadao.js` | 262 |
-| `parque_treta` | Parque da Treta | **capture** | `map_parque.js` | 409 |
+| `atacadao_treta` | Atacadão da Treta | **capture** | `map_atacadao.js` | 264 |
+| `parque_treta` | Parque da Treta | **capture** | `map_parque.js` | 411 |
 | `velho_oeste` | Velho Oeste da Treta | **capture** | `map_velho_oeste.js` | 433 |
 | `penitenciaria` | Penitenciária da Treta | **capture** | `map_penitenciaria.js` | 247 |
 

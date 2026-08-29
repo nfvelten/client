@@ -3,6 +3,12 @@
 Derivados otimizados das referências locais; texturas WebP 256², sem quantização
 de malha skinned.
 
+- `demoiselle_voo.glb` — Demoiselle de Santos Dumont (1907). Fonte local do dono
+  (`~/Downloads/demoiselle_santos_dumont.glb`, 28 MB, 90.393 tris, 11 PNGs),
+  reprocessada aqui pelo mesmo pipeline da fauna: `weld` + `simplify` 0,06 +
+  `textureCompress` WebP 256². Resultado **373 KiB, 6.323 tris**, animação preservada.
+  SHA-256 `f562d90a07fc2c11…`. Prop de CÉU (`skylife.js`), órbita ampla a 45-66 m.
+
 - `padre_balao.glb` — **obra própria**, gerado no [Mint](https://mint.gg) em 28/08/2026
   (projeto "CS BRASIL - Time Mítico", modelo "Rainbow Balloon Priest"), otimizado pelo
   preset `production` do próprio Mint: 868K, 4.465 triângulos, 1 malha, 1 material,

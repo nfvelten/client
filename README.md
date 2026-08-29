@@ -34,12 +34,12 @@ contra bots, direto na aba. Sem download, sem instalação, sem cadastro.
 
 | O que | Quanto | Onde confere |
 |---|---:|---|
-| Código do jogo | 35.348 linhas em 51 arquivos | `git ls-files public/js/*.js \| xargs wc -l` |
+| Código do jogo | 35.443 linhas em 51 arquivos | `git ls-files public/js/*.js \| xargs wc -l` |
 | `game.js` | **7.076** linhas | `wc -l public/js/game.js` |
 | `main.js` | 2.703 linhas | `wc -l public/js/main.js` |
 | Armas com GLB | 26 | `git ls-files 'public/models/weapons/*.glb' \| wc -l` |
 | GLBs de personagem | 45 | `git ls-files 'public/models/characters/*.glb' \| wc -l` |
-| Props em GLB | 116 | `git ls-files 'public/models/props/*.glb' \| wc -l` |
+| Props em GLB | 117 | `git ls-files 'public/models/props/*.glb' \| wc -l` |
 | Clipes de animação versionados | 573 | `git ls-files public/models/anims \| wc -l` |
 | Personagens jogáveis | 44, em 5 facções | array `CHARACTERS` de `characters.js` |
 | Mapas no registro | 13 | objeto `MAPS` de `maps.js` |
@@ -306,17 +306,17 @@ Os mapas registrados, e em que modo cada um abre:
 
 | Id | Nome no menu | Abre em | Arquivo em `public/js/` | Linhas |
 |---|---|---|---|---:|
-| `praca_poderes` | Praça dos Três Poderes | rodadas | `map_brasilia.js` | 1.837 |
-| `piscina_treta` | Piscina da Treta | rodadas | `map_piscina.js` | 817 |
-| `loja_h` | Loja H (Estacionamento) | **captura** | `map_havan.js` | 1.971 |
-| `ferro_velho` | Ferro Velho do Zé | **captura** | `map_ferrovelho.js` | 1.895 |
-| `quebrada` | Quebrada (Rua do Baile) | **captura** | `map_quebrada.js` | 1.606 |
-| `corrego` | Córrego (Favela de SP) | **captura** | `map_corrego.js` | 1.356 |
+| `praca_poderes` | Praça dos Três Poderes | rodadas | `map_brasilia.js` | 1.839 |
+| `piscina_treta` | Piscina da Treta | rodadas | `map_piscina.js` | 819 |
+| `loja_h` | Loja H (Estacionamento) | **captura** | `map_havan.js` | 1.973 |
+| `ferro_velho` | Ferro Velho do Zé | **captura** | `map_ferrovelho.js` | 1.897 |
+| `quebrada` | Quebrada (Rua do Baile) | **captura** | `map_quebrada.js` | 1.608 |
+| `corrego` | Córrego (Favela de SP) | **captura** | `map_corrego.js` | 1.377 |
 | `posto_treta` | Posto da Treta | **captura** | `map_posto.js` | 489 |
 | `upa_24h` | UPA 24h da Treta | **captura** | `map_upa.js` | 288 |
 | `obras_prefeitura` | Obras da Prefeitura | **captura** | `map_obras.js` | 240 |
-| `atacadao_treta` | Atacadão da Treta | **captura** | `map_atacadao.js` | 262 |
-| `parque_treta` | Parque da Treta | **captura** | `map_parque.js` | 409 |
+| `atacadao_treta` | Atacadão da Treta | **captura** | `map_atacadao.js` | 264 |
+| `parque_treta` | Parque da Treta | **captura** | `map_parque.js` | 411 |
 | `velho_oeste` | Velho Oeste da Treta | **captura** | `map_velho_oeste.js` | 433 |
 | `penitenciaria` | Penitenciária da Treta | **captura** | `map_penitenciaria.js` | 247 |
 

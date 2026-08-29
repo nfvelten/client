@@ -1880,7 +1880,9 @@ export function buildFerroVelho(scene, T) {
 
   /* Padre no balao (skylife.js): deriva alta, fora do miolo jogavel. O balao e o
      unico prop de ceu deste mapa — ver docs/SKYLIFE.md. */
-  const skyLife = createSkyLife(root, { map: 'ferro_velho', low: LOWQ, balloons: [{ center: [0, 58, 10],  radius: 78,  speed: .029, phase: 3.3 }] });
+  const skyLife = createSkyLife(root, { map: 'ferro_velho', low: LOWQ, balloons: [{ center: [0, 58, 10],  radius: 78,  speed: .029, phase: 3.3 }],
+    // Demoiselle de 1907: orbita ampla, mais baixa e mais rapida que o balao
+    demoiselles: [{ center: [0, 49, 0], radius: 88, speed: .086, phase: 2.2 }] });
 
   return {
     skyLife,

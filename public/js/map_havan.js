@@ -1950,7 +1950,9 @@ export function buildHavan(scene, T) {
 
   /* Padre no balao (skylife.js): deriva alta, fora do miolo jogavel. O balao e o
      unico prop de ceu deste mapa — ver docs/SKYLIFE.md. */
-  const skyLife = createSkyLife(root, { map: 'loja_h', low: LOWQ, balloons: [{ center: [0, 62, 0],   radius: 86,  speed: .026, phase: 5.1 }] });
+  const skyLife = createSkyLife(root, { map: 'loja_h', low: LOWQ, balloons: [{ center: [0, 62, 0],   radius: 86,  speed: .026, phase: 5.1 }],
+    // Demoiselle de 1907: orbita ampla, mais baixa e mais rapida que o balao
+    demoiselles: [{ center: [0, 52, 0], radius: 96, speed: .080, phase: 4.6 }] });
 
   return {
     skyLife,

@@ -25,13 +25,14 @@
      balao-solto   põe balão em mapa de céu laranja      -> BAL2
      balao-parado  zera a velocidade de deriva           -> BAL3
      balao-baixo   desce o balão para a altura do jogo   -> BAL4
+     sem-demo      tira o Demoiselle dos mapas azuis      -> BAL6
 
    Sai 1 se qualquer cláusula reprovar, ou se um mutante não acender a dele. */
 import { MAPS, initTextures, bootGame } from './harness.mjs';
 
 const args = process.argv.slice(2);
 const MUT = (args.find((a) => a.startsWith('--mutante=')) || '').split('=')[1] || '';
-const MUTANTES = { 'sem-balao': 'BAL1', 'balao-solto': 'BAL2', 'balao-parado': 'BAL3', 'balao-baixo': 'BAL4' };
+const MUTANTES = { 'sem-balao': 'BAL1', 'balao-solto': 'BAL2', 'balao-parado': 'BAL3', 'balao-baixo': 'BAL4', 'sem-demo': 'BAL6' };
 if (MUT && !MUTANTES[MUT]) { console.error(`mutante desconhecido: ${MUT}`); process.exit(2); }
 
 /* Os mapas de céu AZUL, medidos e não opinados: `scene.background` é textura de céu de dia
@@ -52,6 +53,8 @@ for (const id of Object.keys(MAPS)) {
   const sl = g.world.skyLife;
   if (sl) await sl.ready;
   let baloes = sl ? sl.items.filter((i) => i.tipo === 'balao') : [];
+  let demos = sl ? sl.items.filter((i) => i.tipo === 'demoiselle') : [];
+  if (MUT === 'sem-demo' && CEU_AZUL.has(id)) demos = [];
   if (MUT === 'sem-balao' && CEU_AZUL.has(id)) baloes = [];
   if (MUT === 'balao-solto' && id === 'velho_oeste') baloes = [{ root: { position: { y: 50, clone: () => ({ distanceTo: () => 99 }) } } }];
   const azul = CEU_AZUL.has(id);
@@ -61,6 +64,12 @@ for (const id of Object.keys(MAPS)) {
   }
   if (!azul && baloes.length) {
     falhas.push(`BAL2 ${id} não tem céu azul e ganhou ${baloes.length} balão(ões)`);
+  }
+  /* BAL6: os dois props de céu andam juntos. Se um entra e o outro não, alguém mexeu em
+     sete mapas e esqueceu um — e é justamente o que ninguém percebe olhando um mapa só. */
+  if (MUT !== 'sem-balao' && MUT !== 'balao-solto') {
+    const esperado = azul ? 1 : 0;
+    if (demos.length !== esperado) falhas.push(`BAL6 ${id}: ${demos.length} demoiselle(s), esperado ${esperado} (o balão tem ${baloes.length})`);
   }
   if (azul && baloes.length === 1 && MUT !== 'balao-solto') {
     const b = baloes[0];
@@ -72,7 +81,7 @@ for (const id of Object.keys(MAPS)) {
     g.world.update?.(0.016, 45);
     const deriva = p1.distanceTo(b.root.position);
     const yMin = Math.min(y1, b.root.position.y);
-    infos.push(`  ${id.padEnd(17)} y=${yMin.toFixed(0)} m · deriva ${deriva.toFixed(0)} m · ${b.usouGlb ? 'GLB' : 'proxy'}`);
+    infos.push(`  ${id.padEnd(17)} balão y=${yMin.toFixed(0)} m deriva ${deriva.toFixed(0)} m · demoiselle ${demos.length ? 'ok' : 'AUSENTE'} · ${b.usouGlb ? 'GLB' : 'proxy'}`);
     if (deriva < DERIVA_MIN) falhas.push(`BAL3 ${id}: o balão derivou ${deriva.toFixed(1)} m entre t=3 s e t=45 s (mínimo ${DERIVA_MIN}) — prop de céu parado lê como maquete`);
     if (yMin < ALTURA_MIN) falhas.push(`BAL4 ${id}: o balão desce a ${yMin.toFixed(1)} m (mínimo ${ALTURA_MIN}) — entra na altura do combate`);
     /* BAL5: o grupo do balão não pode ter virado colisor nem occluder. `marcarCeu` existe

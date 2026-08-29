@@ -54,7 +54,7 @@ export const CORREGO_PROPS = ['pilha_pneus', 'tires', 'dumpster', 'moto_cg', 'fu
   // BUG-72: sem isto o preloadMapProps nunca baixava vegetação e o mapa ficava só terra
   'grama_corrego_01', 'grama_corrego_02', 'planta_corrego_taboa', 'planta_corrego_taioba',
   // vida de céu (skylife.js): pipa e helicóptero, os dois sem call-site até agora
-  SKY_KITE_ASSET, SKY_HELI_ASSET];
+  SKY_KITE_ASSET, SKY_HELI_ASSET, 'varal_roupas'];
 
 export const CORREGO_ARTE_SUBSTITUICOES = Object.freeze({
   'folha-person-02.png': 'or-mitico-mural.png',
@@ -446,6 +446,21 @@ export function buildCorrego(scene, T) {
     const L = 3.4, hip = Math.hypot(L, -CANAL_FUNDO + 0.05);
     addBoxSB(CANAL_ABERTURA, 0.24, hip, matAssoreado, 0, (CANAL_FUNDO + 0.05) / 2 - 0.24, sz * 33.4,
       { collide: false, skirt: false, rx: -sz * Math.atan2(0.05 - CANAL_FUNDO, L) });   // mesmo sinal da rampa
+  }
+
+  const varalGlb = [];
+  /* Varal do kit favela_r3: escala UNIFORME de proposito — esticar o eixo da corda
+     deforma a roupa, que e o detalhe que o dono elogiou no lajes. Portado do map2/corrego. */
+  function varalGlbPlace({ x, y, z, alt, ry }) {
+    const o = placeProp('varal_roupas', { x, y, z, targetH: alt, ry });
+    if (!o) return null;
+    o.name = 'varal_glb';
+    o.userData.varalGlb = { altAlvo: alt, baseY: y };
+    o.userData.nonCollider = true;
+    o.traverse((m) => { if (m.isMesh) m.userData.nonSolidSurface = true; });
+    root.add(o);
+    varalGlb.push(o);
+    return o;
   }
 
   /* ═══════════ GRAMA_SPOTS — call-site do `grama_corrego.glb` (frente E): sem o prop
@@ -975,7 +990,11 @@ export function buildCorrego(scene, T) {
   // Varal atravessado no beco, com roupa — foto_012. Plano pequeno e colorido no meio do vão.
   // cor pura: 2 cm de espessura com textura é o pior caso do texel-check (ver matCano)
   const matRoupa = [0xd8d2c4, 0x8fa9c8, 0xc06a6a, 0xd8c46a, 0x7f9e78, 0xc9a2c2].map((color) => lam({ color, roughness: 1 }));
+  /* 5 dos 12 vaos ganham o GLB (VARAL_MOLDE, mesma escolha do map2/corrego); os outros
+     ficam no plano colorido, que continua sendo o fallback quando o acervo nao baixou. */
+  const VARAL_MOLDE = new Set(['-1|-18.4', '1|-3.2', '-1|16.8', '1|28.4', '-1|-29']);
   for (const lado of [-1, 1]) for (const [z, xv] of [[-18.4, 13.65], [-3.2, 13.65], [16.8, 13.65], [28.4, 13.65], [-29.0, 6.0], [9.6, 6.0]]) {
+    if (VARAL_MOLDE.has(`${lado}|${z}`) && varalGlbPlace({ x: lado * xv, y: 1.95, z, alt: 1.55, ry: Math.PI / 2 })) continue;
     addBox(0.02, 0.02, 4.2, matCabo, lado * xv, 3.2, z, { collide: false, cast: false, skirt: false });
     for (let k = 0; k < 6; k++)
       addBoxI(0.02, 0.62 + (k % 3) * 0.14, 0.44, matRoupa[(k + Math.abs(z | 0)) % matRoupa.length],
@@ -1333,6 +1352,8 @@ export function buildCorrego(scene, T) {
     helicopters: [{ center: [0, 41, 0], radius: 52, speed: .13, phase: 2.1 }],
     // padre no balao: deriva alta e lenta, fora do raio do heli para os dois nao colarem
     balloons: [{ center: [0, 58, -6], radius: 74, speed: .028, phase: 1.2, scale: 1 }],
+    // Demoiselle de 1907: orbita ampla, mais baixa e mais rapida que o balao
+    demoiselles: [{ center: [0, 50, 0], radius: 86, speed: .084, phase: 3.8 }],
     // araras: a presença aérea que a v2.1 tirou, agora com asa que bate de verdade
     birds: [
       { center: [-4, 27, -8], radius: 26, speed: .30, phase: 0, scale: 1 },
@@ -1346,7 +1367,7 @@ export function buildCorrego(scene, T) {
   const slowAt = (x, z) => Math.abs(z) >= HALF_Z - 6 && Math.abs(x) <= CANAL_X1;
 
   return {
-    root, colliders, occluders, decalSolids: [root], groundHeightAt, slowAt, spawns, sun, hemi, pickups, ctfPoints, ambience,sound:{loops:[{src:AMB_LOOPS.corrego,pos:[0,.3,-37],radius:15,vol:.45},{src:AMB_LOOPS.corrego,pos:[0,.3,37],radius:15,vol:.45},{src:AMB_LOOPS.cidade,pos:[0,3,0],radius:70,vol:.18}],bioma:'favela'}, propEscala,
+    root, colliders, occluders, decalSolids: [root], groundHeightAt, slowAt, spawns, sun, hemi, pickups, ctfPoints, ambience, varalGlb,sound:{loops:[{src:AMB_LOOPS.corrego,pos:[0,.3,-37],radius:15,vol:.45},{src:AMB_LOOPS.corrego,pos:[0,.3,37],radius:15,vol:.45},{src:AMB_LOOPS.cidade,pos:[0,3,0],radius:70,vol:.18}],bioma:'favela'}, propEscala,
     skyLife,
     update(dt, time) { aguaCorrego.update(dt); skyLife.update(dt, time); },
     waypoints: { nodes, adj }, nearestWaypoint, findPath,

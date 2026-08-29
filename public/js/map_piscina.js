@@ -791,7 +791,9 @@ export function buildPoolDay(scene, T) {
 
   /* Padre no balao (skylife.js): deriva alta, fora do miolo jogavel. O balao e o
      unico prop de ceu deste mapa — ver docs/SKYLIFE.md. */
-  const skyLife = createSkyLife(root, { map: 'piscina_treta', low: false, balloons: [{ center: [0, 54, 0],   radius: 70,  speed: .030, phase: 2.7 }] });
+  const skyLife = createSkyLife(root, { map: 'piscina_treta', low: false, balloons: [{ center: [0, 54, 0],   radius: 70,  speed: .030, phase: 2.7 }],
+    // Demoiselle de 1907: orbita ampla, mais baixa e mais rapida que o balao
+    demoiselles: [{ center: [0, 47, 0], radius: 84, speed: .085, phase: 1.1 }] });
 
   return {
     skyLife,

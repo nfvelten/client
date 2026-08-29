@@ -388,7 +388,9 @@ export function buildParque(scene, T) {
 
   /* Padre no balao (skylife.js): deriva alta, fora do miolo jogavel. O balao e o
      unico prop de ceu deste mapa — ver docs/SKYLIFE.md. */
-  const skyLife = createSkyLife(root, { map: 'parque_treta', low: false, balloons: [{ center: [0, 52, 0],   radius: 68,  speed: .033, phase: 4.2 }] });
+  const skyLife = createSkyLife(root, { map: 'parque_treta', low: false, balloons: [{ center: [0, 52, 0],   radius: 68,  speed: .033, phase: 4.2 }],
+    // Demoiselle de 1907: orbita ampla, mais baixa e mais rapida que o balao
+    demoiselles: [{ center: [0, 45, 0], radius: 78, speed: .090, phase: 0.6 }] });
 
   return {
     skyLife,

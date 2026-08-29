@@ -45,6 +45,10 @@ const jobs = [
      bater de asa é procedural sobre os nós `asa-esquerda`/`asa-direita`, mesmo
      recurso do tatu e da pipa. simplify .6 pelo mesmo motivo dos outros Mint: 4,9k
      tris é o dobro do padrão Quaternius e a arara é lida a 20-30 m de altura. */
+  /* Demoiselle do Santos Dumont: prop de CEU, nao fauna — entra aqui porque o pipeline e
+     o mesmo. A fonte tem 90.393 tris e 28 MB (11 PNGs); visto a 60 m de altura isso e
+     desperdicio puro, dai o simplify agressivo. Mantem a animacao (helice). */
+  { src: 'references/glb/demoiselle_mint.glb', out: `${outDir}/demoiselle_voo.glb`, skinned: false, noDecimate: true, simplify: .06 },
   { src: 'references/glb/arara_voo_split.glb', out: `${outDir}/arara_voo.glb`, skinned: false, noDecimate: true, simplify: .6 },
   { src: 'references/glb/barata_urbana_mint.glb', out: `${outDir}/barata_urbana.glb`, skinned: false, noDecimate: true, simplify: .4,
     // o Mint entregou vermelho glossy de brinquedo: sob o sol laranja do córrego
