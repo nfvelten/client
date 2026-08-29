@@ -16,6 +16,9 @@ const mutants = [
   'sem-midia', 'midia-ampla', 'sem-cota-midia',
   'cache-sem-binding', 'cache-so-ingles', 'cache-sem-especificador',
   'sem-ponte', 'ponte-ampla', 'ponte-insensivel', 'sem-ponte-cliente', 'jogo-com-ponte',
+  'sem-webglstate', 'webglstate-amplo',
+  'sem-capacidade', 'capacidade-ampla', 'lock-sem-catch',
+  'sem-contexto', 'contexto-amplo', 'fail-no-contexto',
 ];
 if (mutant && !mutants.includes(mutant)) throw new Error(`mutante desconhecido: ${mutant}`);
 
@@ -26,6 +29,7 @@ let api = readFileSync('src/pages/api/jserror.ts', 'utf8');
 let workflow = readFileSync('.github/workflows/crash-fix.yml', 'utf8');
 let page = readFileSync('src/pages/index.astro', 'utf8');
 let gameJs = readFileSync('public/js/game.js', 'utf8');
+let mainJs = readFileSync('public/js/main.js', 'utf8');
 let mutationApplied = !mutant;
 
 const mutate = (source, before, after) => {
@@ -191,6 +195,28 @@ if (mutant === 'jogo-com-ponte') page = mutate(page,
   'window.__gameLaunch = lancamento;',
   "window.__gameLaunch = lancamento; window.__gCrWeb.postMessage('ping');");
 
+/* BUG-81 · a redação do WebKit sai da RECOVERABLE_RE e o aviso que o three ENGOLIU volta
+   a escalar como bug do jogo. */
+if (mutant === 'sem-webglstate') helperSource = mutate(helperSource,
+  "|THREE\\.WebGLState: Type error", '');
+/* O corte largo: qualquer `THREE.WebGLState:` vira recuperável — inclusive `Invalid
+   blending`, que é constante inválida NOSSA e não erro engolido do driver. */
+if (mutant === 'webglstate-amplo') helperSource = mutate(helperSource,
+  'THREE\\.WebGLState: Type error/i', 'THREE\\.WebGLState:/i');
+/* BUG-80 · sem o ramo, a rejeição de capacidade volta a escalar. */
+if (mutant === 'sem-capacidade') helperSource = mutate(helperSource,
+  "if (CAPACIDADE_RE.test(evidence)) return 'recuperavel';",
+  "if (CAPACIDADE_RE.test(evidence)) return 'codigo';");
+/* O corte largo: `is not available` solto engole crash de verdade que apenas CITA a frase. */
+if (mutant === 'capacidade-ampla') helperSource = mutate(helperSource,
+  '/screen\\.orientation\\.lock\\(\\) is not available on this device/i',
+  '/is not available/i');
+/* O conserto REAL da #431/#432: sem o catch, a promessa do `lock()` volta a virar
+   unhandledrejection e a derrubar o launch da partida. */
+if (mutant === 'lock-sem-catch') mainJs = mutate(mainJs,
+  "screen.orientation?.lock?.('landscape')?.catch?.(() => {})",
+  "screen.orientation?.lock?.('landscape')");
+
 /* BUG-74 · o `onerror` da tag do módulo guardava um booleano e jogava fora o ErrorEvent,
    inclusive o `src` com o `?v=`. O relatório virava paráfrase nossa, sem evidência nenhuma. */
 if (mutant === 'onerror-sem-src') page = mutate(page,
@@ -203,6 +229,19 @@ if (mutant === 'payload-sem-migalhas') api = mutate(api,
   'client_payload: { fingerprint: chave, message, source, stack, origin,');
 if (mutant === 'issue-sem-migalhas') workflow = mutate(workflow,
   '**Migalhas:**', '**Migalhas removidas:**');
+
+/* BUG-75 · perda de contexto no meio do frame (#419/#420). Os três jeitos de o corte deixar
+   de valer: sumir do helper, ficar LARGO a ponto de engolir a perda persistente deliberada
+   ('contexto WebGL perdido'), e o launch voltar a cair no painel pela corrida. */
+if (mutant === 'sem-contexto') helperSource = mutate(helperSource,
+  "if (CONTEXT_LOSS_RE.test(evidence)) return 'recuperavel';",
+  "if (CONTEXT_LOSS_RE.test(evidence)) return 'codigo';");
+if (mutant === 'contexto-amplo') helperSource = mutate(helperSource,
+  'const CONTEXT_LOSS_RE = ',
+  'const CONTEXT_LOSS_RE = /WebGL/i; const CONTEXT_LOSS_RE_ESTREITA = ');
+if (mutant === 'fail-no-contexto') page = mutate(page,
+  'if (lancamento.ativo && interna && !erroDeContexto(String(msg))) lancamento.fail(',
+  'if (lancamento.ativo && interna) lancamento.fail(');
 
 let classifyCrash = null, shouldDispatchCrash = null, crashFingerprint = null, fingerprintConfere = null, isConsoleLog = null;
 if (helperSource) {
@@ -263,6 +302,38 @@ const opaqueFixtures = [
 const recoverableFixtures = [
   { source: '', stack: '', message: "THREE.GLTFLoader: Couldn't load texture blob:https://www.csbrasil.online/bbaced98-44e1-4922-83b1-4564e004a737" },
   { message: "THREE.GLTFLoader: Couldn't load texture models/characters/mst.glb" },
+  /* BUG-81 · issue #465, PUBLICADA: `console.error` que o PRÓPRIO three emite de dentro do
+     `try/catch` do `WebGLState` (`vendor/three.module.js:23761`, e mais 9 irmãos `tex*` entre
+     `:23650` e `:23785`). O quadro TERMINOU — a pilha veio pelo argumento `Error` que o hook
+     do `console.error` lê (`index.astro:411`), e é ela que faz o corte do BUG-72 não pegar.
+     `fp` é o hash de `console|<message>|` e a cláusula EP8 confere. */
+  { fp: 'c2d5e2c2', kind: 'console', source: '', message: 'THREE.WebGLState: Type error',
+    stack: `texImage2D@[native code]\ntexImage2D@${own}/vendor/three.module.js:23766:23\nupdate@${own}/js/loading3d.js:146:25` },
+];
+/* O corte é ESTREITO: exige o prefixo `THREE.WebGLState:` E a redação do WebKit. Estas três
+   seguem `codigo` — a 1ª é a que trava a decisão, porque é a ÚNICA outra mensagem com esse
+   prefixo no bundle (`three.module.js:23345` e `:23371`) e é constante inválida NOSSA, não
+   erro engolido do driver. A redação do Chrome nunca foi observada e fica de fora por
+   decisão, não por medição: sem dado de campo, ela continua acionável. */
+const naoRecuperavelFixtures = [
+  { source: '', stack: '', message: 'THREE.WebGLState: Invalid blending:  201' },
+  { source: '', stack: '', message: "THREE.WebGLState: TypeError: Failed to execute 'texImage2D' on 'WebGL2RenderingContext'" },
+  { source: `${own}/vendor/three.module.js:29975:29`, stack: '', message: "TypeError: undefined is not an object (evaluating 'material.map.source')" },
+];
+/* BUG-80 · issues #431 e #432, PUBLICADAS e da MESMA sessão (as migalhas são idênticas, das
+   01:54 às 01:55). Uma causa, duas fingerprints: a #432 é a rejeição crua (`index.astro:346`)
+   e a #431 é a mesma frase com o prefixo do `lancamento.fail()` (`:285`) — a forma da
+   #419/#420. Chegam sem stack e sem source, então o rótulo TEM que sair da mensagem. */
+const capacidadeFixtures = [
+  { fp: 'df013498', kind: 'promise', source: '', stack: '', message: 'screen.orientation.lock() is not available on this device.' },
+  { fp: '342e306c', kind: 'error', source: 'promise', stack: '', message: 'Falha ao abrir partida: screen.orientation.lock() is not available on this device.' },
+];
+/* O corte não pode ser largo: `is not available` solto engole crash de verdade que apenas
+   CITA a frase — a 1ª é o mutante `capacidade-ampla` em forma de fixture. */
+const naoCapacidadeFixtures = [
+  { source: `${own}/js/audio.js:31:5`, stack: '', message: "TypeError: 'AudioContext' is not available in this context" },
+  { source: `${own}/js/main.js:1034:7`, stack: '', message: 'TypeError: document.documentElement.requestFullscreen is not a function' },
+  { source: '', stack: '', message: 'screen.orientation.lock() failed because the page is not fullscreen' },
 ];
 /* BUG-73 · abort de MÍDIA (issue #389; a #122 do BUG-37 é a irmã). O navegador rejeita o
    `play()` pendente quando alguém chama `pause()` ou troca o `src` — e o jogo faz isso DE
@@ -338,6 +409,8 @@ const fontesDoJogo = spawnSync('git', ['ls-files', 'src', 'public/js'], { encodi
 const textoDoJogo = (f) => {
   if (f === 'src/pages/index.astro') return page;
   if (f === helperPath) return helperSource;
+  if (f === 'public/js/main.js') return mainJs;
+  if (f === 'public/js/game.js') return gameJs;
   try { return readFileSync(f, 'utf8'); } catch { return ''; }
 };
 const jogoSemPonte = fontesDoJogo.length > 0 && fontesDoJogo.every((f) => !USO_DE_PONTE.test(textoDoJogo(f)));
@@ -684,6 +757,93 @@ const injetadoProcede = typeof crashFingerprint === 'function'
   && injetadoFixtures.filter((f) => f.fp).length === 4
   && injetadoFixtures.filter((f) => f.fp).every((f) => crashFingerprint('error', f.message, f.source) === f.fp);
 
+/* PROCEDÊNCIA, mesma trava do EP12 e do EP17: os fingerprints PUBLICADOS nas três issues são
+   o hash EXATO de `<kind>|<message>|<source>`. Se alguém "arrumar" a fixture, o número deixa
+   de bater e a cláusula acusa que ela não é mais o que a produção mandou. */
+const procedeFp = (f) => typeof crashFingerprint === 'function'
+  && crashFingerprint(f.kind, f.message, f.source) === f.fp;
+const webglStateProcede = recoverableFixtures.filter((f) => f.fp).length === 1
+  && recoverableFixtures.filter((f) => f.fp).every(procedeFp);
+const capacidadeProcede = capacidadeFixtures.length === 2 && capacidadeFixtures.every(procedeFp);
+
+/* EP18 · BUG-80 (issues #431 e #432). `screen.orientation.lock()` devolve PROMESSA, e a
+   rejeição do WebKit ("not available on this device") virava `unhandledrejection`: o handler
+   de `index.astro:347` chama `lancamento.fail()`, e a etapa 'partida' (aberta em `main.js:986`
+   com janela de 60 s) ainda estava de pé — o jogador via "Falha ao abrir partida" numa partida
+   que ia carregar sozinha. O `try/catch` da linha NÃO alcançava: ele pega throw síncrono.
+
+   O corte é na ORIGEM e por FAMÍLIA, não uma regex por incidente: TODA chamada às quatro APIs
+   de capacidade que devolvem promessa, em todo o fonte do jogo, nasce com catch COLADO nela.
+   Colado, e não "em algum lugar da linha": no `main.js:1037` o `.catch` do `requestFullscreen`
+   mora na MESMA linha, e uma cláusula por linha aprovaria o defeito de volta. */
+const CHAMADA_DE_CAPACIDADE = /(?:orientation\??\.lock|requestPointerLock|requestFullscreen|exitFullscreen)\??\.?\([^()]*\)/g;
+const CATCH_COLADO = /^\s*\??\.?catch\??\.?\(/;
+const sitiosDeCapacidade = [];
+for (const arquivo of fontesDoJogo) {
+  textoDoJogo(arquivo).split('\n').forEach((linha, i) => {
+    for (const m of linha.matchAll(CHAMADA_DE_CAPACIDADE)) {
+      sitiosDeCapacidade.push({
+        arquivo, linha: i + 1, texto: linha.trim(),
+        comCatch: CATCH_COLADO.test(linha.slice(m.index + m[0].length)),
+      });
+    }
+  });
+}
+const semCatch = sitiosDeCapacidade.filter((s) => !s.comCatch);
+/* A ÚNICA exceção declarada: o `requestFullscreen` guarda a promessa em `fs` porque a trava de
+   orientação depende dela, e os DOIS ramos das duas linhas seguintes a capturam. Sítio novo
+   sem catch reprova — é isso que impede a próxima promessa solta de nascer. */
+const capacidadeNaOrigem = sitiosDeCapacidade.length >= 5
+  && semCatch.length === 1
+  && semCatch[0].arquivo === 'public/js/main.js'
+  && /^const fs = document\.documentElement\.requestFullscreen\?\.\(\);$/.test(semCatch[0].texto)
+  && /\}\)\.catch\(\(\) => \{\}\);\n\s*else fs\?\.catch\?\.\(\(\) => \{\}\);/.test(mainJs);
+/* EP19 · BUG-82 (issues #420/#419, WebKit, alpha.176). Perda de contexto WebGL no MEIO do
+   frame: `_isContextLost` do three só vira verdade quando o evento DOM chega (assíncrono);
+   na janela da corrida createShader() (ocorrência única no vendor) devolve null e
+   shaderSource(null,…) lança TypeError — 1 por frame, porque o rAF é a 1ª linha do loop.
+   main.js já recupera (forceContextRestore em 0,5/1,5/4 s; WG7 tranca os listeners) e a SL8
+   fecha a corrida no vendor; a perda PERSISTENTE continua escalando pela mensagem deliberada
+   'contexto WebGL perdido' de main.js — que esta regex NÃO pode casar. */
+const SRC_420 = `${own}/vendor/three.module.js:19355:17`;
+const STACK_420 = `shaderSource@[native code]\nWebGLShader@${SRC_420}`;
+const contextoFixtures = [
+  /* a forma crua da #420 (uncaught, window.onerror) e a prefixada da #419 (lancamento.fail) */
+  { source: SRC_420, stack: STACK_420, message: "TypeError: Argument 1 ('shader') to WebGL2RenderingContext.shaderSource must be an instance of WebGLShader" },
+  { source: SRC_420, stack: STACK_420, message: "Falha ao abrir partida: Argument 1 ('shader') to WebGL2RenderingContext.shaderSource must be an instance of WebGLShader" },
+  /* WebGL1 (fallback do glcontext.js) e outro entry point tipado da mesma família */
+  { source: '', stack: '', message: "Argument 1 ('shader') to WebGLRenderingContext.compileShader must be an instance of WebGLShader" },
+];
+/* Vizinhas que continuam `codigo` DE PROPÓSITO (mutante contexto-amplo): o fatal deliberado
+   da perda persistente, crash real dentro do vendor, e a forma Chrome nunca observada nas
+   crash-auto — largura só entra com dado de campo (molde do BUG-73). */
+const naoContextoFixtures = [
+  { source: 'webgl-context-lost', stack: '', message: 'Falha ao abrir a arena: contexto WebGL perdido' },
+  { source: `${own}/vendor/three.module.js:29975:29`, stack: '', message: "undefined is not an object (evaluating 'material.program')" },
+  { source: '', stack: '', message: "Failed to execute 'shaderSource' on 'WebGL2RenderingContext': parameter 1 is not of type 'WebGLShader'." },
+];
+/* O espelho do cliente EXTRAÍDO e EXECUTADO, como EP6/EP14: regex de fiação sozinha
+   aprovaria `function erroDeContexto(){ return true; }`. */
+let contextoCliente = null;
+const ctxMatch = page.match(/function erroDeContexto\(m\)\{[\s\S]*?\n  \}/);
+if (ctxMatch) {
+  try { contextoCliente = new Function(`${ctxMatch[0]}\nreturn erroDeContexto;`)(); }
+  catch { /* cláusula fica vermelha */ }
+}
+const contextoClienteOk = !!contextoCliente
+  && contextoFixtures.every((f) => contextoCliente(f.message) === true)
+  && naoContextoFixtures.every((f) => contextoCliente(f.message) === false);
+/* O fail() do launch é segurado SÓ para a corrida: erro de contexto não mata a abertura com
+   o restore a 500 ms — o watchdog da etapa e o fatal de 8 s continuam de rede de segurança.
+   O reporta() da linha anterior NÃO é suprimido: a linha segue no js_error. */
+const failContextoWired = /if \(lancamento\.ativo && interna && !erroDeContexto\(String\(msg\)\)\) lancamento\.fail\(/.test(page)
+  && /reporta\('error', msg, loc, e\.error && e\.error\.stack, !interna\);/.test(page);
+/* Procedência (molde da EP12): os fingerprints PUBLICADOS nas #420/#419, reproduzidos pela
+   receita real — se a família mudar de texto, estes números mudam e a cláusula cai. */
+const fingerprintsDaFamilia = typeof crashFingerprint === 'function'
+  && crashFingerprint('error', contextoFixtures[0].message, SRC_420) === '645208c8'
+  && crashFingerprint('error', contextoFixtures[1].message, SRC_420) === '9e9db234';
+
 const checks = [
   ['EP1', extensionFixtures.every((fixture) => classify(fixture) === 'externo'), 'esquemas de extensão são externos'],
   ['EP2', crossOriginFixtures.every((fixture) => classify(fixture) === 'externo'), 'scripts cross-origin são externos'],
@@ -695,10 +855,13 @@ const checks = [
     && classify({ source: `${own}/js/main.js`, stack: 'at chrome-extension://abc/inpage.js', message: 'boom' }) === 'codigo'
     && classify({ message: 'prod-coherence reprovou' }) === 'cache-split', 'proveniência externa vence cache-split e origem própria vence evidência secundária'],
   ['EP8', recoverableFixtures.every((fixture) => classify(fixture) === 'recuperavel')
+    && naoRecuperavelFixtures.every((fixture) => classify(fixture) === 'codigo')
+    && webglStateProcede
     && classify({ source: `${own}/js/game.js:1:2`, message: 'boom' }) === 'codigo'
     && typeof shouldDispatchCrash === 'function'
     && shouldDispatchCrash('recuperavel') === false
-    && shouldDispatchCrash('codigo') === true, 'aviso recuperável de textura fica na telemetria mas não vira bug do jogo'],
+    && shouldDispatchCrash('codigo') === true,
+    'aviso recuperável de textura e o erro que o three ENGOLE no WebGLState (#465) ficam na telemetria mas não viram bug do jogo; `Invalid blending`, que é constante inválida nossa, continua acionável'],
   ['EP4', apiWired, 'API grava o erro e o early-return externo é o único corte antes do dispatch único'],
   ['EP5', workflowWired, 'workflow classifica externo sem abrir issue, em nenhum OR da condição'],
   ['EP6', clientBehavior && clientWired, 'cliente executado: mensagem não é proveniência, overlay/cota de externo são separados'],
@@ -740,6 +903,18 @@ const checks = [
     && shouldDispatchCrash('externo') === false
     && injetadoProcede && injetadoCliente && injetadoNoBaldeExterno && jogoSemPonte,
     'ponte injetada por navegador/WebView/extensão (#428/#379/#380/#381) é externa mesmo com filename same-origin e frame único `global code@`: fica na telemetria, não abre issue e cai no balde de externo; crash NOSSO na MESMA forma (window.__game, window.__SUPPORT no script inline da própria página) continua acionável, e o jogo segue sem falar com ponte nenhuma'],
+  ['EP18', capacidadeFixtures.every((fixture) => classify(fixture) === 'recuperavel')
+    && naoCapacidadeFixtures.every((fixture) => classify(fixture) === 'codigo')
+    && typeof shouldDispatchCrash === 'function'
+    && shouldDispatchCrash('recuperavel') === false
+    && capacidadeProcede && capacidadeNaOrigem,
+    'promessa de capacidade do navegador nasce com catch colado na chamada (#431/#432): a rejeição do orientation.lock não vira unhandledrejection nem derruba o launch, as duas formas de campo ficam na telemetria sem abrir issue, e crash que só CITA "is not available" continua acionável'],
+  ['EP19', contextoFixtures.every((fixture) => classify(fixture) === 'recuperavel')
+    && naoContextoFixtures.every((fixture) => classify(fixture) === 'codigo')
+    && typeof shouldDispatchCrash === 'function'
+    && shouldDispatchCrash('recuperavel') === false
+    && contextoClienteOk && failContextoWired && fingerprintsDaFamilia,
+    'perda de contexto no meio do frame (#419/#420) é recuperável: fica na telemetria, não abre issue nem derruba o launch; a perda persistente (contexto WebGL perdido), crash real no vendor e a forma Chrome não observada continuam acionáveis'],
 ];
 const failed = checks.filter(([, ok]) => !ok);
 for (const [id, ok, description] of checks) console.log(`${ok ? '\x1b[32m✓' : '\x1b[31m✗'} ${id} ${description}\x1b[0m`);
@@ -764,6 +939,9 @@ const mutantClause = {
   'cache-sem-binding': 'EP16', 'cache-so-ingles': 'EP16', 'cache-sem-especificador': 'EP16',
   'sem-ponte': 'EP17', 'ponte-ampla': 'EP17', 'ponte-insensivel': 'EP17',
   'sem-ponte-cliente': 'EP17', 'jogo-com-ponte': 'EP17',
+  'sem-webglstate': 'EP8', 'webglstate-amplo': 'EP8',
+  'sem-capacidade': 'EP18', 'capacidade-ampla': 'EP18', 'lock-sem-catch': 'EP18',
+  'sem-contexto': 'EP19', 'contexto-amplo': 'EP19', 'fail-no-contexto': 'EP19',
 };
 if (mutant && !failed.some(([id]) => id === mutantClause[mutant])) {
   failed.push(['MUT', false, `mutação ${mutant} não acendeu ${mutantClause[mutant]}`]);

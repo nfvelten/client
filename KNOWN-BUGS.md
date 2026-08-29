@@ -39,6 +39,142 @@ lista de "balão" do CHR1 tem os mesmos 13 antes e depois).
 
 ## P0 — quebram o jogo ou mentem para quem mede
 
+### ~~BUG-80 · a promessa do `orientation.lock()` derrubava o launch — a partida abria com o painel "Falha ao abrir partida"~~ · RESOLVIDO 28/08 (issues #431 e #432)
+
+**Sintoma (literal, issues #431 e #432, abertas pelo `crash-fix.yml` em 24/08 18:07Z):**
+*"screen.orientation.lock() is not available on this device."* (fingerprint `df013498`,
+origem `promise`) e *"Falha ao abrir partida: screen.orientation.lock() is not available on
+this device."* (fingerprint `342e306c`, origem vazia). Alpha.183, **sem stack e sem source**,
+e as migalhas das duas são **idênticas** (01:54:04 a 01:55:18, terminando em
+`clique #char-confirm` / `clique #btn-team-b`): é a MESMA sessão e a MESMA rejeição. Duas
+fingerprints porque o prefixo do `lancamento.fail()` muda o hash FNV — a forma da #419/#420.
+
+**Causa raiz — defeito de código, `public/js/main.js:1037`.** A linha era
+`fs.then(() => { try { screen.orientation?.lock?.('landscape'); } catch {} }).catch(() => {})`.
+O `lock()` devolve **promessa**, e ela não é devolvida nem capturada: o `try/catch` ao redor
+pega throw **síncrono**, e o `.catch` do fim da linha é do `requestFullscreen`, não do
+`lock`. No aparelho do relato a promessa **rejeita** — a frase é redação do navegador e não
+nossa (não existe essa string no repo) —, a rejeição vira `unhandledrejection`, e
+`origemDoJogo(null, undefined, mensagem)` (`index.astro:180`) devolve `true`: sem stack e
+sem source, nada prova terceiro. Com `interna === true`, `index.astro:347` chama
+`lancamento.fail()`, e a etapa `'partida'` está
+aberta desde `main.js:986` com janela de **60 s**: o painel "Falha ao abrir partida" cobre
+uma partida que ia carregar sozinha. O comentário do próprio trecho afirmava que esse
+navegador apenas **ignora** a trava; o relato mostra que ele **rejeita**, e ignorar em
+silêncio nunca teria aberto issue nenhuma — o comentário foi corrigido junto.
+
+**Conserto.** Uma linha: `?.catch?.(() => {})` colado na chamada do `lock()`. É o idioma
+que as outras TRÊS promessas de capacidade do jogo já usavam — `main.js:998`,
+`main.js:1185` e `game.js:2071`; a do `lock` era a única sem. `src/lib/error-provenance.mjs`
+ganha a `CAPACIDADE_RE` com a redação exata, classificando a família como `recuperavel`:
+é **rede para a janela do cache-split** (BUG-39), onde um `main.js` velho do edge ainda
+roda com HTML novo — não é o conserto.
+
+**Medido (sem browser, lendo o fonte e executando o helper real):**
+
+| | antes | depois |
+|---|---|---|
+| as 2 formas de campo classificadas | `codigo` → 2 issues | `recuperavel` → 0 issues |
+| `fail()` derruba o launch na rejeição | sim (#431) | não — a promessa já nasce capturada |
+| sítios de capacidade com catch colado | 3 de 4 | 4 de 4 |
+| fingerprints publicados reproduzidos | — | 2/2 (`df013498`, `342e306c`) |
+
+**Custo declarado, na população real:** das **99** issues `crash-auto`
+(`gh issue list --label crash-auto --state all`, 28/08), exatamente **2** são desta família
+— e a busca por `not available` na mesma população devolve só essas duas. **Vizinhas que
+continuam como estão, DE PROPÓSITO:** `index.astro` NÃO ganhou guarda no
+`unhandledrejection` — consertada a origem, ela seria código morto, ao contrário da #420,
+onde o vendor ainda lança; `screen.orientation.lock() failed because the page is not
+fullscreen` (redação diferente, nunca observada) segue `codigo`; e qualquer crash que apenas
+CITE "is not available" segue acionável (contra-fixture na régua, mutante `capacidade-ampla`).
+Sem a trava de orientação, o overlay "gire o celular" do CSS continua sendo a rede — como
+sempre foi nos navegadores que nunca tiveram a API.
+
+**Não verificado:** sem browser nesta máquina a rejeição não foi reproduzida ao vivo, e o
+aparelho não está na issue — o que o relato prova é o ramo que rodou (`pointer: coarse` com
+`requestFullscreen` disponível, `main.js:1033-1037`), não a marca do navegador. A frequência
+da família por sessão no Supabase fica sem número (schema privado, sem credencial). O que está medido é a forma da
+guarda (EP18), os 2 fingerprints de campo e o fato de as outras 3 promessas de capacidade já
+usarem o mesmo idioma.
+
+**Régua: `tools/eval/error-provenance-check.mjs`** (`npm run eval:error-origin`, já no
+`check:fast` e no `check:deploy` — nenhum passo novo no portão). Cláusula **EP18**: varre
+`src/` e `public/js/` e exige catch **colado na chamada** das quatro APIs de capacidade que
+devolvem promessa (`orientation.lock`, `requestPointerLock`, `requestFullscreen`,
+`exitFullscreen`), com UMA exceção declarada — o `const fs = …requestFullscreen?.()` de
+`main.js:1034`, cuja promessa os dois ramos das linhas seguintes capturam. Por linha não
+serviria: no `:1037` o `.catch` do `requestFullscreen` mora na MESMA linha e aprovaria o
+defeito de volta. **3 mutações novas:** `sem-capacidade`, `capacidade-ampla` e
+`lock-sem-catch`.
+
+### ~~BUG-81 · erro que o próprio three ENGOLE virava issue de crash do jogo~~ · RESOLVIDO 28/08 (issue #465)
+
+**Sintoma (literal, issue #465, aberta pelo `crash-fix.yml` em 28/08 07:34Z):**
+*"THREE.WebGLState: Type error"*, fingerprint `c2d5e2c2`, classe `codigo`, alpha.192,
+**origem vazia**, com stack do WebKit terminando em
+`update@…/js/loading3d.js:146:25` → `loop@…/js/main.js:2586:22`.
+
+**Causa raiz — não é exceção, é linha de log.** `crashFingerprint('console',
+'THREE.WebGLState: Type error', '')` devolve exatamente `c2d5e2c2`: o relato entrou pelo
+hook do `console.error` (`index.astro:397`), não pelo `window.onerror`. E quem emite é o
+**próprio three, de dentro de um `try/catch` seu**: `public/vendor/three.module.js:23761`
+embrulha `gl.texImage2D` e loga `console.error('THREE.WebGLState:', error)` — são **10
+irmãos** entre `:23650` e `:23785`, todos `tex*`/`compressedTex*`. O quadro **termina**: o
+`uploadTexture` segue, o `render()` retorna e o jogo continua sem aquele mapa. A pilha chegou
+junto porque o hook lê o argumento `Error` (`index.astro:411`, conserto do BUG-72) — e é
+justamente ela que faz `isConsoleLog()` devolver `false`, o corte do BUG-72 não pegar e o
+`classifyCrash` cair no `return 'codigo'` final. Pior: com pilha, o relato **não** cai no
+`TETO_CONSOLE`; come 1 dos 10 slots de exceção real do `TETO_SESSAO`.
+
+**Refutado antes de agir.** O palpite óbvio era "é a mesma textura webp da `RECOVERABLE_RE`":
+os GLBs de personagem são mesmo `EXT_texture_webp` (medido: `gotinha`, `canarinho` e
+`blackmetal` trazem 3 imagens `image/webp` cada, e `gotinha` é justo o modelo da tela de
+carregamento, `loading3d.js:7`). **Refutado por leitura:** quando a imagem não decodifica,
+`GLTFLoader.js:3178` resolve `null` e `assignTexture` (`:3290`) faz `if (!texture) return
+null` — o mapa nunca é atribuído, então não existe upload e não existe `texImage2D`. A #465
+**não** é a irmã tardia da #110.
+
+**Conserto.** A redação entra na `RECOVERABLE_RE` de `src/lib/error-provenance.mjs`, ao lado
+do `Couldn't load texture` que já mora lá: aviso do three que o próprio three engoliu fica na
+telemetria bruta e não dispara issue. Fonte única (`jserror.ts` e `scripts/classify-crash.mjs`
+no CI), então o corte vale até para cliente velho em cache. **O que NÃO foi consertado, e por
+quê:** o balde do cliente continua o do BUG-72 — `console` COM pilha segue no `TETO_SESSAO`.
+Mudar isso é rever a decisão do BUG-72 inteira, e uma ocorrência não paga essa conta.
+
+**Dívida declarada.** A mensagem do three **não diz qual textura**: ele loga só o `error`, sem
+nome, sem formato e sem o tipo do `image`. Por isso o relato é inacionável por construção —
+não dá para consertar a origem a partir dele. Se a família voltar com frequência, o próximo
+passo é instrumentar o `uploadTexture` do vendor para dizer QUAL textura falhou, e aí a linha
+volta a ser acionável.
+
+**Medido (helper real, executado do fonte, sem browser):**
+
+| | antes | depois |
+|---|---|---|
+| a forma de campo da #465 classificada | `codigo` → issue automática | `recuperavel` → só telemetria |
+| `THREE.WebGLState: Invalid blending:` | `codigo` | `codigo` (contra-fixture) |
+| fingerprint publicado reproduzido | — | `c2d5e2c2` (EP8 mede) |
+| cláusulas verdes / mutantes que mordem | 17 / 47 | 18 / 52 |
+
+**Custo declarado, na população real:** das **99** issues `crash-auto`
+(`gh issue list --label crash-auto --state all`, 28/08), exatamente **1** é desta família.
+**Vizinhas que continuam como estão, DE PROPÓSITO:** `THREE.WebGLState: Invalid blending:`
+(`three.module.js:23345` e `:23371`) é a ÚNICA outra mensagem com esse prefixo no bundle e é
+constante inválida **nossa** — segue `codigo`, e é a contra-fixture que trava o corte; a
+redação do Chrome (`Failed to execute 'texImage2D'…`) nunca foi observada e fica de fora por
+decisão, não por medição; `THREE.WebGLProgram: Shader Error…` segue no corte de log do
+BUG-72; e crash real dentro do vendor, com `source` same-origin, segue acionável.
+
+**Não verificado:** qual textura falhou (a mensagem não diz — ver a dívida acima) e em qual
+navegador: a issue veio sem user-agent, e `Type error` é redação do motor, não nossa. A linha
+completa do `js_error`, com `hits`, segue sem número: schema privado, sem credencial aqui.
+
+**Régua: `tools/eval/error-provenance-check.mjs`** (`npm run eval:error-origin`, já no
+`check:fast` e no `check:deploy`). Cláusula **EP8**, agora com o payload PUBLICADO da #465
+(o fingerprint tem que ser reproduzido pela receita, mesma trava do EP12/EP17) e três
+contra-fixtures. **2 mutações novas:** `sem-webglstate` e `webglstate-amplo`. Matriz
+completa: **52 de 52 mordidos**.
+
 ### ~~BUG-75 · a redação do WebKit para export ausente caía em `codigo` — Safari nunca acionava o purge do edge~~ · RESOLVIDO 25/08 (issue #443)
 
 **Sintoma (literal, issue #443, aberta pelo `crash-fix.yml` em 25/08 18:05Z):**
@@ -278,6 +414,97 @@ Supabase não foi consultada. **Pontos cegos declarados:** a invariante de hones
 corte. E o corte vale em qualquer campo, inclusive na mensagem: um crash NOSSO cujo texto apenas
 cite um dos seis nomes sumiria. É o mesmo furo estrutural que a `EXTENSION_RE` tem desde a
 BUG-51, e a invariante de honestidade é o guarda-corpo.
+### ~~BUG-82 · perda de contexto WebGL no meio do frame lançava TypeError por frame, matava o launch e abria issue — a flag do three é assíncrona~~ · RESOLVIDO 25/08 (issues #419 e #420)
+
+**Sintoma (literal, issues #420 e #419, mesma sessão, alpha.176, WebKit):**
+*"TypeError: Argument 1 ('shader') to WebGL2RenderingContext.shaderSource must be an
+instance of WebGLShader"*, fingerprints `645208c8` (#420) e `9e9db234` (#419), classe
+`codigo`, origem `vendor/three.module.js:19355:17`, stack
+`shaderSource@[native code] → WebGLShader → WebGLProgram → acquireProgram → getProgram →
+setProgram → renderObject → renderScene → update@game.js → loop@main.js`. A #419 é o
+**mesmo crash** com o prefixo *"Falha ao abrir partida: "* — o handler global
+(`index.astro`) chamou `lancamento.fail()` durante o launch da etapa `partida`
+(`main.js:985`), e o prefixo muda o hash FNV. Duas issues pela mesma corrida.
+
+**Causa raiz — confirmada.** O three r160 vendorizado só se protege pela flag assíncrona
+`_isContextLost` (`three.module.js:28562`), setada quando o evento DOM `webglcontextlost`
+é **despachado** (`:29104`); a guarda única do `render()` era `if ( _isContextLost === true )
+return;` (`:29547`). Entre a perda física do contexto e o despacho do evento,
+`gl.createShader()` (`:19353`, ocorrência única no bundle) devolve `null` e a chamada
+tipada seguinte — `gl.shaderSource(null,…)` — lança TypeError no WebKit. Como o
+`requestAnimationFrame` é a 1ª linha do loop, o jogo não morre: lança **1 TypeError por
+frame** até o evento chegar. Upstream r179 conferido: idêntico ao r160 aqui — não havia
+guarda oficial a portar, a guarda é autoral.
+
+**Palpite óbvio, REFUTADO com leitura medida:** "a recuperação de contexto não existe/não
+roda". Falso — `main.js:80-105` já faz `preventDefault` + `forceContextRestore()` em
+0,5/1,5/4 s com fatal deliberado em 8 s (`'contexto WebGL perdido'`), e a WG7
+(`webgl-compat-check.mjs`) tranca os listeners desde o #303. O defeito não era a
+recuperação: era a **corrida** (a janela entre a perda e o evento), o **rótulo** (o
+`classifyCrash` não batia `OPAQUE_RE`, `AMBIENTE_RE`, `CACHE_SPLIT_RE`, `RECOVERABLE_RE`
+nem `MEDIA_ABORT_RE` e caía no `return 'codigo'` final, que escala) e o **painel** (o
+`fail()` matava o launch por um erro que ia se recuperar 500 ms depois).
+
+**Correção, em três camadas espelhadas.**
+1. *Vendor fecha a corrida*: a guarda do `render()` consulta a verdade síncrona do driver
+   além da flag — `if ( _isContextLost === true || _gl.isContextLost() === true ) return;`.
+   `isContextLost()` é leitura de flag do wrapper do contexto (setada no instante da perda;
+   é para isso que a API existe), não sync de GPU: 1 chamada por `render()` contra milhares
+   de GL calls. Frame na janela da corrida pula o render inteiro, como o frame seguinte ao
+   evento já pulava.
+2. *Classificação cala o alarme falso*: `CONTEXT_LOSS_RE` estreita em
+   `src/lib/error-provenance.mjs` → classe `recuperavel`. A linha continua gravada no
+   `js_error`; some o disparo automático, não o dado — e o corte vale até para cliente
+   velho em cache, porque `classifyCrash` é fonte única (rota `/api/jserror` e
+   `scripts/classify-crash.mjs` no CI).
+3. *Cliente segura só o painel*: `erroDeContexto()` em `index.astro` (mesma redação da
+   regex, função SEPARADA do `erroIgnoravel` para não desviar o balde `TETO_MIDIA` nem
+   tocar a EP14) guarda apenas o `lancamento.fail()` do handler de erro global. O
+   `reporta()` segue enviando; o watchdog de 60 s da etapa e o fatal de 8 s continuam de
+   rede de segurança — o jogador nunca fica preso.
+
+**Medido antes do conserto (25/08, helper real executado do fonte):**
+
+| | antes | depois |
+|---|---|---|
+| `classifyCrash` das 2 formas de campo | `codigo` 2/2 | `recuperavel` 2/2 |
+| família abre issue automática | 2/2 (#419, #420) | 0/2 |
+| `fail()` derruba o launch na corrida | sim (#419) | não (fatal de 8 s continua) |
+| fingerprints publicados reproduzidos pela receita | 2/2 | 2/2 (inalterados) |
+| cláusulas / mutantes que mordem | EP 15, SL 7 / 39+5 | EP 16, SL 8 / **42+6, matriz completa medida** |
+
+**Custo declarado, na população real.** Das **97** issues `crash-auto`
+(`gh issue list --label crash-auto --state all`, 25/08), exatamente **2** são desta família
+(#419/#420 — a busca `label:crash-auto "must be an instance"` devolve só as duas). Vizinhas
+que continuam como estão, DE PROPÓSITO: a perda **persistente** (`'contexto WebGL
+perdido'`, o fatal deliberado de `main.js:100`) segue `codigo` — é o mutante
+`contexto-amplo` que tranca isso; a forma Chrome (*"Failed to execute 'shaderSource'…"*)
+**nunca foi observada** em campo e segue `codigo` até haver dado (largura por palpite de
+regex é o arnês aprovando a si mesmo); crash real dentro do vendor segue `codigo`;
+*"THREE.WebGLProgram: Shader Error…"* (#331 etc.) segue no corte de log do BUG-72. No
+cliente, o erro de contexto consome 1 slot do balde de exceção (deduplicado por
+fingerprint — sem balde novo). Perda que acontece DURANTE um `render()` já em andamento
+ainda lança 1 vez (a guarda roda no topo do frame); essa ocorrência única fica no
+`js_error` como `recuperavel`. E o `catch` de `_startGame` (`main.js:1000`) chama o
+`fail()` direto, sem a guarda do handler global — hoje inalcançável para esta família
+(`game.start()` não renderiza; o render vive no `update` do loop), e no pior caso o
+servidor já classifica `recuperavel`: fica anotado, não trancado.
+
+**Não verificado:** sem WebKit/browser nesta máquina, a corrida não foi reproduzida ao
+vivo (o harness node não tem WebGL; `crash-watch.mjs` exige browser) — o que está medido é
+a forma da guarda e a assinatura de campo das duas issues. A garantia de que
+`gl.isContextLost()` é `true` na janela antes do evento é de spec, não medida aqui. A
+frequência da família por sessão no Supabase fica sem número (schema privado, sem
+credencial).
+
+**Régua: `tools/eval/error-provenance-check.mjs`** (`npm run eval:error-origin`, no
+`check:fast` e no `check:deploy`): **EP19** executa o helper e o `erroDeContexto`
+extraídos do fonte, ancora os 2 fingerprints publicados e exige as 3 vizinhas `codigo`;
+mutantes `sem-contexto`, `contexto-amplo` e `fail-no-contexto` — **42 de 42 na matriz
+completa**. **E `tools/eval/shader-log-check.mjs`** (`npm run eval:shaderlog`): **SL8**
+tranca presença e posição da guarda síncrona no topo do `render()` (textual-posicional
+como SL4-SL6 — executar o `render()` inteiro exigiria stub do renderer inteiro, e arnês
+desse tamanho mede a si mesmo, lição da EP12); mutante `sem-contexto-sincrono` — 6 de 6.
 
 ### ~~BUG-74 · o watchdog de boot relatava uma paráfrase nossa e jogava fora o erro do navegador~~ · RESOLVIDO 19/08 (issue #386)
 
