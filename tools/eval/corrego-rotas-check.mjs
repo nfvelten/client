@@ -23,6 +23,17 @@
             >= ALTO_MIN que o flood-fill NÃO alcança. É a cláusula que morde a "rampa
             por cima dos barracos que não é acessível" — e ela nomeia a ilha com x/z/y
             para o conserto saber onde ir.
+     ROTA7  cada ESCADA INTERNA de sobrado sobe do térreo à laje com degrau <= STEP_H
+            (perfil com yRef, o mesmo passo do corpo). Comprada em 30/08 com a camada
+            vertical (KNOWN-BUGS: "camada vertical do córrego").
+     ROTA8  cada PRANCHA declarada (laje→travessia, laje↔laje) anda de ponta a ponta
+            (degrau <= STEP_H) e as pontas pousam em superfície alta (>= 5,3 m).
+     ROTA9  as JANELAS declaradas existem (>= 12; >= 4 de canal, >= 4 laterais — sem
+            inventário a régua passaria por vacuidade) e de cada janela de CANAL há
+            LINHA DE TIRO desobstruída até o eixo do canal (raycast na cena construída).
+     VIGA   toda escora diagonal declarada tem PÉ: na vertical da ponta inferior há
+            superfície desenhada a <= VGAP_MAX do chão físico ("arestas que deviam
+            ligar ao chão", 30/08).
      ROTA4  passagem POR BAIXO da rampa, dentro do canal: sonda de corpo à altura do
             fundo varrendo z ao longo da faixa da rampa. Esta cláusula NÃO usa o
             flood-fill: ele é 2.5D (`groundHeightAt` devolve UMA altura por x,z) e por
@@ -39,6 +50,12 @@
      canal-tampado   o fundo do canal sobe ao nível da rua                  -> ROTA2
      ilha-solta      cria laje alta andável e desconectada                  -> ROTA3
      rampa-macica    enche o vão sob a rampa com colisor                    -> ROTA4
+     escada-tampada  o lance 2 do sobrado S4 vira teto de 2,8 (a laje dele
+                     continua acessível pela prancha S3↔S4 — SÓ a ROTA7 acende) -> ROTA7
+     laje-ilhada     as pranchas somem do chão (cada laje vira ilha entre si;
+                     as escadas continuam — SÓ a ROTA8 acende)               -> ROTA8
+     janela-cega     parede fantasma na frente de toda janela de canal       -> ROTA9
+     viga-no-ar      o desenho da escora perde o pé (hits < chão+0,9 somem)  -> VIGA
 
    Sai 1 se qualquer cláusula reprovar, ou se um mutante NÃO acender cláusula nenhuma. */
 import { MAPS, initTextures, bootGame, THREE } from './harness.mjs';
@@ -49,7 +66,7 @@ const MUT = (args.find((a) => a.startsWith('--mutante=')) || '').split('=')[1] |
 /* Cada mutante aponta a cláusula que ELE tem de acender. `canal-tampado` estava
    registrado na ROTA2 e acendia a ROTA1: sem esta conferência o registro mentiria e a
    ROTA2 ficaria sem prova nenhuma. Foi o próprio autoteste (lei 2) que pegou. */
-const MUTANTES = { 'rampa-plana': 'ROTA1', 'canal-tampado': 'ROTA1', 'canal-ilhado': 'ROTA2', 'ilha-solta': 'ROTA3', 'ponte-macica': 'ROTA4', 'ponte-sumida': 'ROTA4', 'passarela-sumida': 'ROTA5', 'passarela-tampa': 'ROTA5', 'travessia-sem-visual': 'ROTA6', 'travessia-visual-plana': 'ROTA6' };
+const MUTANTES = { 'rampa-plana': 'ROTA1', 'canal-tampado': 'ROTA1', 'canal-ilhado': 'ROTA2', 'ilha-solta': 'ROTA3', 'ponte-macica': 'ROTA4', 'ponte-sumida': 'ROTA4', 'passarela-sumida': 'ROTA5', 'passarela-tampa': 'ROTA5', 'travessia-sem-visual': 'ROTA6', 'travessia-visual-plana': 'ROTA6', 'escada-tampada': 'ROTA7', 'laje-ilhada': 'ROTA8', 'janela-cega': 'ROTA9', 'viga-no-ar': 'VIGA' };
 if (MUT && !MUTANTES[MUT]) { console.error(`mutante desconhecido: ${MUT}`); process.exit(2); }
 
 /* Parâmetros do flood-fill: os MESMOS do pickup-check, de propósito. Dois números
@@ -62,6 +79,9 @@ const DEGRAU = 0.30;
    qualquer laje de barraco conta; 1 m² evita acusar quina de colisor como "ilha". */
 const ALTO_MIN = 2.4;
 const CANAL_FUNDO = -1.75;   // espelho de map_corrego.js:31
+/* vão máximo pé→assoalho desenhado — COMPARTILHADO por ROTA6 (travessia) e VIGA
+   (escoras): duas cláusulas que medem o mesmo conceito, um limiar só (skill regua). */
+const VGAP_MAX = 0.35;
 const AREA_ILHA_MIN = 1.0;
 
 const falhas = [];
@@ -91,6 +111,27 @@ if (MUT === 'canal-ilhado') gh = (x, z, y) => {
   if (ax < 3 && Math.abs(z) > 30) return 0;         // pontas assoreadas viram muro
   return gh0(x, z, y);
 };
+/* escada-tampada: SÓ o sobrado S4 (o que tem prancha pra S3): a laje dele continua
+   alcançável pela prancha — é o que isola a ROTA7 da ROTA3/ROTA8. */
+if (MUT === 'escada-tampada') {
+  const S4 = (W.sobrados || [])[3];
+  gh = (x, z, y) => {
+    const h = gh0(x, z, y);
+    if (S4 && Math.abs(x - S4.x) <= S4.w / 2 && Math.abs(z - S4.z) <= S4.d / 2 && h > 3.0 && h < 5.5) return 2.8;
+    return h;
+  };
+}
+/* laje-ilhada: dentro da zona de qualquer prancha o chão volta a ser a camada de baixo
+   (yRef -10 falha todos os portões) — as escadas continuam, só a interligação some. */
+if (MUT === 'laje-ilhada') {
+  const nasPranchas = (x, z) => (W.pranchas || []).some((pr) => {
+    const dx = pr.bx - pr.ax, dz = pr.bz - pr.az, t = ((x - pr.ax) * dx + (z - pr.az) * dz) / (dx * dx + dz * dz);
+    return t >= 0 && t <= 1 && Math.hypot(x - (pr.ax + dx * t), z - (pr.az + dz * t)) <= pr.meiaL;
+  });
+  /* poupa a faixa da travessia (|z+11| <= 1,3): a ponta da P1 invade a zona que a
+     ROTA5 varre e o mutante acendia DUAS cláusulas — exclusividade é o teste do teste */
+  gh = (x, z, y) => (nasPranchas(x, z) && Math.abs(z + 11) > 1.3 ? gh0(x, z, -10) : gh0(x, z, y));
+}
 if (!MUT) gh = gh0;
 
 const B = { minX: -60, maxX: 60, minZ: -60, maxZ: 60 };
@@ -327,7 +368,7 @@ for (const r of rampas) infos.push(`  rampa ${r.nome}: degrau máx ${r.degrauMax
    Esta cláusula raycasteia a cena CONSTRUÍDA de cima para baixo ao longo da rota alta e
    exige superfície desenhada a <= VGAP_MAX do pé de quem anda, em cada amostra. */
 {
-  const PASS_Z = -11, PASS_Y = 5.6, PE = 13.6, VGAP_MAX = 0.35;
+  const PASS_Z = -11, PASS_Y = 5.6, PE = 13.6;
   const ray = new THREE.Raycaster();
   const DOWN = new THREE.Vector3(0, -1, 0);
   let piorGap = 0, xGap = null, semHit = 0;
@@ -347,6 +388,121 @@ for (const r of rampas) infos.push(`  rampa ${r.nome}: degrau máx ${r.degrauMax
   infos.push(`travessia visual (z=${PASS_Z}): maior vão pé→assoalho ${piorGap > 90 ? 'SEM ASSOALHO' : piorGap.toFixed(3) + ' m'}${xGap !== null ? ` em x=${xGap.toFixed(1)}` : ''}`);
   if (semHit > 0) falhas.push(`ROTA6 a rota alta anda no AR: ${semHit} amostra(s) sem nenhuma superfície desenhada sob o pé (z=${PASS_Z})`);
   else if (piorGap > VGAP_MAX) falhas.push(`ROTA6 o assoalho desenhado está a ${piorGap.toFixed(2)} m do chão físico em x=${xGap.toFixed(1)} (teto ${VGAP_MAX}) — o jogador não vê por onde a travessia sobe`);
+}
+
+/* ═══ ROTA7 — cada escada interna sobe do térreo à laje ═══
+   O perfil replica o traçado em U (dados vivos de W.sobrados; as FÓRMULAS da lane são
+   espelho de _escadaDe em map_corrego.js — mudou lá, muda aqui). Passo do corpo, não
+   da grade: STEP_H, o mesmo teto da ROTA1. */
+{
+  const sobrados = W.sobrados || [];
+  if (sobrados.length < 4) falhas.push(`ROTA7 inventário: ${sobrados.length} sobrado(s) declarados (esperados >= 4) — sem inventário a régua passa por vacuidade`);
+  sobrados.forEach((S, si) => {
+    const horiz = S.eixo === 'x';
+    const uMin = (horiz ? S.x - S.w / 2 : S.z - S.d / 2) + 0.16;
+    const uMax = (horiz ? S.x + S.w / 2 : S.z + S.d / 2) - 0.16;
+    const cMin = horiz ? S.z - S.d / 2 : S.x - S.w / 2;
+    const cMax = horiz ? S.z + S.d / 2 : S.x + S.w / 2;
+    const cWall = S.ladoEscada > 0 ? cMax - 0.16 : cMin + 0.16;
+    const cB = cWall - S.ladoEscada * 0.45, cA = cWall - S.ladoEscada * 1.35;
+    const pts = [];
+    const P = (u, c) => pts.push(horiz ? [u, c] : [c, u]);
+    for (let u = uMin + 0.1; u <= uMax - 0.75; u += 0.15) P(u, cB);   // lance 1 (parede)
+    P(uMax - 0.35, cB); P(uMax - 0.35, cA);                          // patamar da volta
+    for (let u = uMax - 0.75; u >= uMin + 0.35; u -= 0.15) P(u, cA); // lance 2
+    P(uMin + 0.35, cA - S.ladoEscada * 0.95);                        // sai na laje
+    let y = 0, pior = 0, onde = null;
+    for (const [px, pz] of pts) {
+      const h = gh(px, pz, y);
+      const d = Math.abs(h - y);
+      if (d > pior) { pior = d; onde = `(${px.toFixed(1)},${pz.toFixed(1)})`; }
+      y = h;
+    }
+    infos.push(`  escada sobrado ${si} (${S.x},${S.z}): degrau máx ${pior.toFixed(2)} m · topo ${y.toFixed(2)} m`);
+    if (pior > STEP_H) falhas.push(`ROTA7 sobrado ${si} (${S.x},${S.z}): degrau de ${pior.toFixed(2)} m em ${onde} na escada interna — o corpo sobe ${STEP_H} m. A escada existe e não se sobe.`);
+    else if (y < 5.6 - 0.2) falhas.push(`ROTA7 sobrado ${si} (${S.x},${S.z}): a escada termina a ${y.toFixed(2)} m — não chega à laje (5,6 m)`);
+  });
+}
+
+/* ═══ ROTA8 — as pranchas de interligação andam de ponta a ponta ═══ */
+{
+  const pranchas = W.pranchas || [];
+  if (pranchas.length < 3) falhas.push(`ROTA8 inventário: ${pranchas.length} prancha(s) declaradas (esperadas >= 3) — a interligação pedida em 30/08 sumiu do contrato`);
+  pranchas.forEach((pr, pi) => {
+    const L = Math.hypot(pr.bx - pr.ax, pr.bz - pr.az), n = Math.max(2, Math.ceil(L / 0.2));
+    let y = gh(pr.ax, pr.az, pr.y), pior = 0;
+    for (let i = 0; i <= n; i++) {
+      const t = i / n, h = gh(pr.ax + (pr.bx - pr.ax) * t, pr.az + (pr.bz - pr.az) * t, y);
+      const d = Math.abs(h - y);
+      if (d > pior) pior = d;
+      y = h;
+    }
+    const yA = gh(pr.ax, pr.az, pr.y), yB = gh(pr.bx, pr.bz, pr.y);
+    infos.push(`  prancha ${pi} (${pr.ax},${pr.az})→(${pr.bx},${pr.bz}): degrau máx ${pior.toFixed(2)} m · pontas ${yA.toFixed(2)}/${yB.toFixed(2)} m`);
+    if (pior > STEP_H) falhas.push(`ROTA8 prancha ${pi}: degrau de ${pior.toFixed(2)} m no meio — a interligação declarada não anda (cada laje vira ilha entre si)`);
+    if (yA < 5.3 || yB < 5.3) falhas.push(`ROTA8 prancha ${pi}: ponta pousa a ${Math.min(yA, yB).toFixed(2)} m — não emenda em laje/travessia (>= 5,3 m)`);
+  });
+}
+
+/* ═══ ROTA9 — janelas de sniper: inventário + linha de tiro até o eixo do canal ═══
+   Janela é AUSÊNCIA de parede (não há malha para contar): o inventário declarado é a
+   única âncora contra vacuidade, e a linha de tiro é medida na cena CONSTRUÍDA. */
+{
+  const jans = W.janelas || [];
+  const canal = jans.filter((j) => j.vista === 'canal');
+  const lats = jans.filter((j) => j.vista === 'lateral');
+  infos.push(`janelas declaradas: ${jans.length} (${canal.length} canal · ${lats.length} laterais)`);
+  if (jans.length < 12 || canal.length < 4 || lats.length < 4)
+    falhas.push(`ROTA9 inventário: ${jans.length} janelas (${canal.length} canal, ${lats.length} laterais) — esperadas >= 12 / >= 4 / >= 4`);
+  const ray = new THREE.Raycaster();
+  for (const j of canal) {
+    const ox = j.x + j.nx * 0.25, oz = j.z + (j.nz || 0) * 0.25;
+    const alvo = new THREE.Vector3(0, 0.3, oz);
+    const dir = alvo.clone().sub(new THREE.Vector3(ox, j.y, oz)).normalize();
+    const distCanal = (Math.abs(ox) - 3) / Math.abs(dir.x || 1e-9);   // até o plano |x|=3
+    ray.set(new THREE.Vector3(ox, j.y, oz), dir);
+    let hits = ray.intersectObjects(W.root.children, true)
+      .filter((h) => !(h.object.userData && h.object.userData.nonSolidSurface))
+      .filter((h) => !(h.object.material && h.object.material.transparent))
+      .map((h) => h.distance);
+    if (MUT === 'janela-cega') hits = [0.6, ...hits];
+    const perto = hits.find((d2) => d2 < distCanal - 0.2);
+    if (perto !== undefined)
+      falhas.push(`ROTA9 janela de canal em (${j.x.toFixed(1)},${j.z.toFixed(1)}): linha de tiro OBSTRUÍDA a ${perto.toFixed(2)} m (o canal está a ${distCanal.toFixed(1)} m) — a posição de sniper pedida em 30/08 não atira`);
+  }
+}
+
+/* ═══ VIGA — toda escora diagonal declarada tem pé no chão ═══
+   Comprada em 30/08: "tem uns barracos com umas arestas que deviam ligar ao chao" —
+   as mão-francesas das palafitas pendiam no ar. Raycast de cima na VERTICAL da ponta
+   inferior declarada: alguma superfície desenhada (a própria escora ou o pé dela) tem
+   de chegar a <= VGAP_MAX do chão físico. Mesmo limiar da ROTA6. */
+{
+  const vigas = W.vigasDiagonais || [];
+  if (vigas.length < 24) falhas.push(`VIGA inventário: ${vigas.length} escora(s) declaradas (esperadas >= 24) — apagar a escora não pode deixar a régua verde`);
+  const ray = new THREE.Raycaster();
+  const DOWN = new THREE.Vector3(0, -1, 0);
+  let piorGap = 0, ondeViga = null, semDesenho = 0;
+  for (const v of vigas) {
+    const floorY = gh0(v.x, v.z, v.y);
+    ray.set(new THREE.Vector3(v.x, v.y + 2.0, v.z), DOWN);
+    /* o PISO (PlaneGeometry do addFloor) sai da conta: senão todo pé "encosta" no
+       chão através do próprio chão e a régua passa por vacuidade */
+    let hits = ray.intersectObjects(W.root.children, true)
+      .filter((h) => !(h.object.userData && h.object.userData.nonSolidSurface))
+      .filter((h) => !(h.object.geometry && h.object.geometry.type === 'PlaneGeometry'))
+      .map((h) => h.point.y)
+      .filter((y) => y <= v.y + 2.0);
+    if (MUT === 'viga-no-ar') hits = hits.filter((y) => y > floorY + 0.9);
+    if (!hits.length) { semDesenho++; continue; }
+    // pé pode estar ENTERRADO (assoreamento): conta qualquer desenho até 0,6 abaixo
+    const temPe = hits.some((y) => y >= floorY - 0.6 && y <= floorY + VGAP_MAX);
+    const gap = temPe ? 0 : Math.max(0, Math.min(...hits) - floorY);
+    if (gap > piorGap) { piorGap = gap; ondeViga = `(${v.x.toFixed(1)},${v.z.toFixed(1)})`; }
+  }
+  infos.push(`vigas diagonais: ${vigas.length} declaradas · pior vão pé→chão ${piorGap.toFixed(2)} m · sem desenho ${semDesenho}`);
+  if (semDesenho > 0) falhas.push(`VIGA ${semDesenho} escora(s) declaradas SEM desenho na vertical do pé — declaração e cena divergem`);
+  if (piorGap > VGAP_MAX) falhas.push(`VIGA escora com pé a ${piorGap.toFixed(2)} m do chão em ${ondeViga} (teto ${VGAP_MAX}) — a aresta voltou a terminar no ar`);
 }
 
 /* ---- saída ---- */

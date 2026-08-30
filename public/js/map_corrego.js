@@ -1316,8 +1316,8 @@ export function buildCorrego(scene, T) {
         if (E.horiz) addBoxSB(du, 0.16, dc, matEsc, u, y - 0.16, cC, { collide: false, skirt: false });
         else addBoxSB(dc, 0.16, du, matEsc, cC, y - 0.16, u, { collide: false, skirt: false });
       };
-      poePlaca(E.uMax - 0.35, (E.cA + E.cB) / 2, 0.7, 1.8, PISO);        // patamar da volta
-      poePlaca(E.uMin + 0.35, E.cA, 0.7, 0.9, S_LAJE);                   // patamar de saida
+      poePlaca(E.uMax - 0.35, (E.cA + E.cB) / 2, 0.7, 1.8, PISO);        // patamares: volta e saida
+      poePlaca(E.uMin + 0.35, E.cA, 0.7, 0.9, S_LAJE);
       /* guarda-corpo do vao da escada: impede o corpo de sair do andar direto no lance
          1 (colisor 2,75..3,65 morde quem anda a 2,8 e deixa o terreo passar por baixo) */
       const cRail = E.cA - Math.sign(E.cB - E.cA) * 0.47;   // borda interna do poco
@@ -1353,16 +1353,16 @@ export function buildCorrego(scene, T) {
   /* ═══ INTERLIGACAO + PARKOUR (pedido 30/08): pranchas ligam laje→travessia e as
      lajes vizinhas do respawn; tampos de pau pulaveis ao lado da rampa oeste. BUG-85. */
   const PRANCHAS = [
-    { ax: 8.6, az: -13.35, bx: 4.6, bz: -11.45, y: S_LAJE, meiaL: 0.55 },     // S1 → tablado
-    { ax: -8.2, az: -16.9, bx: -4.6, bz: -11.45, y: S_LAJE, meiaL: 0.55 },    // S2 → tablado
-    { ax: -16.43, az: -21.7, bx: -16.43, bz: -23.6, y: S_LAJE, meiaL: 0.5 },  // S3 ↔ S4
+    { ax: 8.6, az: -13.35, bx: 4.6, bz: -11.45, y: S_LAJE, meiaL: 0.55 },     // S1 e S2 → tablado; S3 ↔ S4
+    { ax: -8.2, az: -16.9, bx: -4.6, bz: -11.45, y: S_LAJE, meiaL: 0.55 },
+    { ax: -16.43, az: -21.7, bx: -16.43, bz: -23.6, y: S_LAJE, meiaL: 0.5, topo: true },
   ];
   /* alcance do pulo MEDIDO no game.js (vel 5,0 / g 20,6 / PLAYER_SPEED 5,35): 2,60 m
      no plano, apex 0,61 m — vaos <= 2,2 (x0,85) e subidas por pulo <= 0,5. BUG-85. */
   const TAMPOS = [
-    { x: -12.5, z: -8.8, y: 0.52 },   // degrau de entrada (0,52 <= 0,55 do corpo)
-    { x: -10.7, z: -8.8, y: 1.89 },   // cota da rampa em x=-10,7 — pula-se de igual pra igual
-    { x: -8.9, z: -8.8, y: 3.06 },    // idem em x=-8,9
+    { x: -12.5, z: -8.8, y: 0.52 },   // degrau de entrada (0,52 <= 0,55 do corpo);
+    { x: -10.7, z: -8.8, y: 1.89 },   // os outros dois na cota da rampa no mesmo x
+    { x: -8.9, z: -8.8, y: 3.06 },
   ];
   {
     const matPr = lam({ map: TEX.wall.map || T.wall, color: 0x9a8f7e, roughness: .95 });
@@ -1385,8 +1385,9 @@ export function buildCorrego(scene, T) {
         addBoxI(0.1, t.y - 0.1, 0.1, matMadeiraBruta, t.x + dx, 0, t.z + dz, { cast: false });
       const hyp = Math.hypot(1.1, t.y - 0.2);
       addBoxSB(hyp, 0.12, 0.12, matRipa, t.x - 1.15, (t.y - 0.2) / 2, t.z,
-        { collide: false, skirt: false, cast: false, rz: Math.atan2(t.y - 0.2, -1.1) });
-      vigasDiagonais.push({ x: t.x - 1.7, y: 0, z: t.z });
+        { collide: false, skirt: false, cast: false, rz: Math.atan2(t.y - 0.2, 1.1) });
+      // ponta registrada 3 cm pra dentro: na aresta exata o raycast falha a face
+      vigasDiagonais.push({ x: t.x - 1.67, y: 0, z: t.z });
     }
   }
 
@@ -1419,13 +1420,15 @@ export function buildCorrego(scene, T) {
   /* prancha: so e chao pra quem ja esta praticamente nela (yRef > y-0,7 — portao mais
      apertado que o da laje, senao quem sobe a rampa POR BAIXO era tele-transportado) */
   const _ghPrancha = (x, z, yRef) => {
-    if (yRef === undefined) return null;
     for (const pr of PRANCHAS) {
+      /* topo: sem yRef a P3 E a camada de cima (embaixo dela e um vao impassavel
+         entre as torres) — e o que deixa o flood 2.5D das reguas cruzar entre lajes */
+      if (yRef === undefined && !pr.topo) continue;
       const dx = pr.bx - pr.ax, dz = pr.bz - pr.az, L2 = dx * dx + dz * dz;
       const t = ((x - pr.ax) * dx + (z - pr.az) * dz) / L2;
       if (t < 0 || t > 1) continue;
       if (Math.hypot(x - (pr.ax + dx * t), z - (pr.az + dz * t)) > pr.meiaL) continue;
-      if (yRef > pr.y - 0.7) return pr.y;
+      if (yRef === undefined || yRef > pr.y - 0.7) return pr.y;
     }
     return null;
   };
