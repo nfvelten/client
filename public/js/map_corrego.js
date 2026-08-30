@@ -921,10 +921,10 @@ export function buildCorrego(scene, T) {
         { ry: ry + k * 0.05 });
   }
 
-  /* ADENSAMENTO contra campo aberto: posições medidas por probe de disco livre,
+  /* ADENSAMENTO contra campo aberto (a casa de -9.7,-18.3 virou SOBRADO jogavel —
+     ver bloco SOBRADOS): posições medidas por probe de disco livre,
      longe de spawn (MAP2B), fora das lanes de nav e sem tapar a 2ª rota de bandeira
      (CTF2 mediu: casa em -9.6,21.5 e barraco em 11.8,13 derrubavam piorRotas a 1). */
-  casa(-9.7, -18.3, 3.4, 3.8, 2, { baseSuja: true });
   puxadinho(-8.4, 21.3, 2.4, 2.4, 2.55);
   puxadinho(15.6, -19.4, 2.8, 2.4, 2.6);
   puxadinho(17.2, 27.3, 2.6, 2.4, 2.55);
@@ -991,6 +991,10 @@ export function buildCorrego(scene, T) {
       const eixo = k % 3 === 0 ? 6.05 : (k % 3 === 1 ? 13.65 : 21.0);
       const x = lado * (eixo + (k % 2 ? 0.55 : -0.55));
       if (SPAWN_Z.some((s) => Math.abs(z - s) < 2.6 && eixo > 20)) continue;
+      /* o entulho do passeio leste em (6.6,-16.9) fechava o corredor entre o sobrado
+         S1 e a beira — era o unico elo da rampa leste da travessia com a margem
+         (MC3, 36 ilhados). O S1 e o cover daquele trecho agora. */
+      if (lado > 0 && k === 3) continue;
       if (k % 5 === 0) tambor(x, z, 0);
       else if (k % 5 === 1) pilhaTijolo(x, z, angAnexo(), 0);
       else if (k % 5 === 2) manilha(x, z, angAnexo(), 0);
@@ -1067,12 +1071,8 @@ export function buildCorrego(scene, T) {
      E ficam a ≥ 5,5 m do ponto de spawn, fora do disco que o MAP2B mede. */
   for (const [id, x, z, ry] of [
     ['uno_mille', 17.8, -30.6, 0.55], ['fusca', 17.8, -10.6, -0.5], ['fiat_uno', 17.8, 20.6, 0.45],
-    /* x=-19.75 e nao -20.6 nem -17.8: -17.8 fundia com as casas da fileira B
-       (sobreposicao 2,5-2,7 m, reporte 30/08) e -20.6 punha o colisor EM CIMA da lane
-       da rua (x=-21, inf 0,3) — CTF2 caiu de 2 para 1 rota (medido 30/08, A/B). Em
-       -19.6 o carro estaciona PARALELO (ry = pi ± 0,1: girado a 34 graus a meia-largura
-       projetada era 1,83 m e cortava a lane do mesmo jeito — medido) e deixa 0,35 m ate
-       a lane. z fora dos becos transversais (-17.3 e 28 ± 1.3 + meia-kombi). */
+    /* x=-19,6 e PARALELO (ry = pi±0,1): em -20,6/girado o colisor cortava a lane da
+       rua e o CTF2 caia a 1 rota — numeros na entrada BUG-85 do KNOWN-BUGS.md */
     ['fusca', -19.6, 25.6, 3.04], ['uno_mille', -19.6, 2.5, 3.24], ['kombi', -19.6, -14.4, 3.05],
   ]) {
     const h = id === 'kombi' ? 2.0 : 1.42;
@@ -1197,8 +1197,201 @@ export function buildCorrego(scene, T) {
     }
   }
 
+  /* ═══ SOBRADOS JOGAVEIS (pedido do dono, 30/08, palavras literais): "mais barracos e
+     uma tipologia que desse pra subir nos barracos por escadas internas, e que se
+     interligasse com a rampa que cruza o mapa e ele pudesse ser jogado de cima tambem";
+     "os barracos de frente pro corrego tivessem visao lateral tambem dos andares. ia
+     ajudar muito com snipers"; "na parte do respawn que tem um espacao, idealmente
+     teriam mais barracos pra ir se interligando via lajes no topo".
+     Tipologia: 2 pavimentos (PISO 2,8), ESCADA INTERNA em U — 2 lances de 0,9 m de
+     lane + patamar — servida MULTINIVEL pelo groundHeightAt (padrao yRef da
+     passarela, BUG-80/82), laje andavel a 5,6 m (mesma cota do tablado da travessia,
+     de proposito) com platibanda de 0,5 m (cobre agachado; pula-se por cima: apex do
+     pulo 0,61 m), e JANELA = AUSENCIA de parede na faixa 1,0-1,9 m do andar — o
+     peitoril cobre ate 1,0 m e atira-se por cima dele (olho a ~1,55 m do piso).
+     SEM giro (ry = 0) de proposito: a escada multinivel e analitica por eixo e a
+     favela em volta ja e torta — quatro caixas retas somem no meio de 60 tortas.
+     Posicoes MEDIDAS contra a planta (faixas sem casa da fileira A junto a travessia
+     e o vao da fileira B no espacao do respawn oeste), fora das lanes de nav
+     (±5,9/±13,65/±21) e fora do disco de 5 m dos spawns (MAP2B). */
+  const S_LAJE = 2 * PISO;                       // 5,6 — cota do tablado da travessia
+  const SOBRADOS = [
+    /* fileira A, de frente pro corrego, um por margem, colados na travessia (z=-11) */
+    { x: 10.15, z: -15.1, w: 4.2, d: 4.4, frente: -1, eixo: 'z', ladoEscada: 1, vista: 'canal' },
+    /* substitui a casa de adensamento (-9.7,-18.3) no MESMO footprint: sobrado novo em
+       posicao nova tapava a unica abertura da fileira A oeste e o CTF2 caia a 1 (medido) */
+    { x: -9.7, z: -18.3, w: 4.4, d: 3.6, frente: 1, eixo: 'x', ladoEscada: 1, vista: 'canal' },
+    /* espacao do respawn oeste (z=-25): preenchem o vao da fileira B; lajes vizinhas
+       (vao de 1,1 m) interligadas por prancha no lote seguinte */
+    /* w 4,16 (nao 4,4): lance de 1,15 m/m — abaixo do 1,2 que a grade de 0,25 m das
+       reguas atravessa (DEGRAU 0,30) — e 0,6 m a menos dentro do disco do MAP2B */
+    { x: -16.28, z: -20.5, w: 4.16, d: 3.0, frente: 1, eixo: 'x', ladoEscada: 1, vista: 'urbana' },
+    { x: -16.28, z: -24.6, w: 4.16, d: 2.6, frente: 1, eixo: 'x', ladoEscada: -1, vista: 'urbana' },
+  ];
+  /* Geometria da escada, compartilhada entre o construtor e o groundHeightAt:
+     lance 1 (lane A, interna) sobe 0→2,8 de uStart ate o patamar (0,7 m) no fim;
+     lance 2 (lane B, contra a parede) volta 2,8→5,6 e sai num patamarzinho a 5,6
+     que emenda na laje. Rampa continua: degrau amostrado a 0,25 m = 0,26 m (< 0,30
+     da grade das reguas e << 0,55 do corpo). */
+  const _escadaDe = (S) => {
+    const horiz = S.eixo === 'x';
+    const uMin = (horiz ? S.x - S.w / 2 : S.z - S.d / 2) + 0.16;
+    const uMax = (horiz ? S.x + S.w / 2 : S.z + S.d / 2) - 0.16;
+    const cMin = horiz ? S.z - S.d / 2 : S.x - S.w / 2;
+    const cMax = horiz ? S.z + S.d / 2 : S.x + S.w / 2;
+    const cWall = S.ladoEscada > 0 ? cMax - 0.16 : cMin + 0.16;
+    const cB = cWall - S.ladoEscada * 0.45, cA = cWall - S.ladoEscada * 1.35;
+    return { horiz, uMin, uMax, cA, cB, L: uMax - uMin };
+  };
+  const janelas = [];
+  {
+    const matEsc = matConcretoFino;
+    /* parede em faixa com vaos: horiz = comprimento ao longo de x */
+    const faixaSeg = (horiz, cLine, y, h, a0, a1, vaos, mat) => {
+      let sPos = a0;
+      const poe = (p0, p1) => {
+        if (p1 - p0 < 0.05) return;
+        const cx = horiz ? (p0 + p1) / 2 : cLine, cz = horiz ? cLine : (p0 + p1) / 2;
+        addBoxSB(horiz ? p1 - p0 : 0.16, h, horiz ? 0.16 : p1 - p0, mat, cx, y, cz, { skirt: false });
+      };
+      for (const [v0, v1] of vaos) { poe(sPos, v0); sPos = v1; }
+      poe(sPos, a1);
+    };
+    SOBRADOS.forEach((S, i) => {
+      const { x, z, w, d, frente } = S;
+      const x0 = x - w / 2, x1 = x + w / 2, z0 = z - d / 2, z1 = z + d / 2;
+      const mur = MURO[(i * 7 + 3) % MURO.length];
+      const E = _escadaDe(S);
+      const J_W = 1.1, PEITO = 1.0, VAO_J = 0.9;         // vao 1,0-1,9 do andar
+      const xFrente = frente > 0 ? x1 : x0, xFundo = frente > 0 ? x0 : x1;
+      /* JANELAS por face. Frente (canal p/ S1-S2): 2 vaos; laterais: 1 vao cada, no
+         meio-vao livre da escada; fundo: 1 vao (menos quando a escada mora nele). */
+      const jFace = [];   // [horiz, cLine, a0, a1, centros[], vista, nx, nz]
+      jFace.push([false, xFrente, z0, z1, [z0 + d * 0.3, z0 + d * 0.7], S.vista, frente, 0]);
+      const cxLat = S.eixo === 'z' ? x0 + w * 0.35 : (x0 + x1) / 2 - frente * w * 0.12;
+      for (const sz of [-1, 1]) {
+        // face z ocupada pela escada (eixo x, lado da escada) fica sem janela lateral
+        if (S.eixo === 'x' && sz === S.ladoEscada) continue;
+        jFace.push([true, (sz > 0 ? z1 : z0), x0, x1, [cxLat], 'lateral', 0, sz]);
+      }
+      if (S.eixo !== 'z') jFace.push([false, xFundo, z0, z1, [z0 + d * 0.62], 'urbana', -frente, 0]);
+
+      /* TERREO 0..2,8: paredes cheias; PORTA no extremo uMin da escada, na parede em
+         que o lance 1 NASCE — entra-se da rua e ja se esta no pe da escada. E o que
+         faz a camada-de-cima subir continua da calcada ate a laje (flood 2.5D). */
+      const porta = [E.cB - 0.75, E.cB + 0.75];
+      /* a frente tem janela TAMBEM no terreo (vao 1,0..1,9): sem ela o interior vira
+         breu (medido na figura) e o terreo nao tem por onde vigiar o canal */
+      const jT = [z0 + d * 0.5 - J_W / 2, z0 + d * 0.5 + J_W / 2];
+      for (const sx of [-1, 1]) {
+        const face = sx > 0 ? x1 : x0;
+        const temPorta = E.horiz && face === x0;
+        const temJanT = face === xFrente;
+        faixaSeg(false, face, 0, PEITO, z0, z1, temPorta ? [porta] : [], mur);
+        faixaSeg(false, face, PEITO, VAO_J, z0, z1, temPorta ? [porta] : (temJanT ? [jT] : []), mur);
+        faixaSeg(false, face, PEITO + VAO_J, 2.1 - PEITO - VAO_J, z0, z1, temPorta ? [porta] : [], mur);
+        faixaSeg(false, face, 2.1, PISO - 2.1, z0, z1, [], mur);
+      }
+      for (const sz of [-1, 1]) {
+        const face = sz > 0 ? z1 : z0;
+        const temPorta = !E.horiz && face === z0;
+        faixaSeg(true, face, 0, 2.1, x0 + 0.16, x1 - 0.16, temPorta ? [porta] : [], mur);
+        faixaSeg(true, face, 2.1, PISO - 2.1, x0 + 0.16, x1 - 0.16, [], mur);
+      }
+
+      /* ANDAR 2,8..5,6: peitoril + verga continuos, faixa do vao segmentada nas janelas */
+      for (const [horiz, cLine, a0, a1, centros, vista, nx, nz] of jFace) {
+        const vaos = centros.map((c) => [c - J_W / 2, c + J_W / 2]);
+        faixaSeg(horiz, cLine, PISO, PEITO, a0, a1, [], matTijoloCru);
+        faixaSeg(horiz, cLine, PISO + PEITO + VAO_J, PISO - PEITO - VAO_J, a0, a1, [], matTijoloCru);
+        faixaSeg(horiz, cLine, PISO + PEITO, VAO_J, a0, a1, vaos, matTijoloCru);
+        for (const c of centros) janelas.push({
+          x: horiz ? c : cLine, z: horiz ? cLine : c, y: PISO + 1.55, vista, nx, nz, sobrado: i });
+      }
+      // paredes do andar que nao entraram no jFace (fundo do eixo z, laterais do eixo x com escada)
+      if (S.eixo === 'z') faixaSeg(false, xFundo, PISO, PISO, z0, z1, [], matTijoloCru);
+      if (S.eixo === 'x') faixaSeg(true, S.ladoEscada > 0 ? z1 : z0, PISO, PISO, x0 + 0.16, x1 - 0.16, [], matTijoloCru);
+
+      /* ESCADA em U, POCO ABERTO na laje: lance 1 na lane da PAREDE (cB) nasce na
+         porta (h 0) e sobe ao patamar da volta (2,8); lance 2 na lane INTERNA (cA)
+         volta subindo ate o patamar de saida (5,6), que emenda de lado na laje.
+         (visual; a fisica mora no groundHeightAt) */
+      const poeLance = (cLane, u0, u1, y0, y1) => {
+        const hyp = Math.hypot(u1 - u0, y1 - y0), uMid = (u0 + u1) / 2, yMid = (y0 + y1) / 2;
+        const ang = Math.atan2(y1 - y0, u1 - u0);
+        if (E.horiz) addBoxSB(hyp, 0.14, 0.9, matEsc, uMid, yMid - 0.07, cLane, { collide: false, skirt: false, rz: ang });
+        else addBoxSB(0.9, 0.14, hyp, matEsc, cLane, yMid - 0.07, uMid, { collide: false, skirt: false, rx: -ang });
+      };
+      poeLance(E.cB, E.uMin, E.uMax - 0.7, 0, PISO);
+      poeLance(E.cA, E.uMin + 0.7, E.uMax - 0.7, S_LAJE, PISO);
+      const poePlaca = (u, cC, du, dc, y) => {
+        if (E.horiz) addBoxSB(du, 0.16, dc, matEsc, u, y - 0.16, cC, { collide: false, skirt: false });
+        else addBoxSB(dc, 0.16, du, matEsc, cC, y - 0.16, u, { collide: false, skirt: false });
+      };
+      poePlaca(E.uMax - 0.35, (E.cA + E.cB) / 2, 0.7, 1.8, PISO);        // patamar da volta
+      poePlaca(E.uMin + 0.35, E.cA, 0.7, 0.9, S_LAJE);                   // patamar de saida
+      /* guarda-corpo do vao da escada: impede o corpo de sair do andar direto no lance
+         1 (colisor 2,75..3,65 morde quem anda a 2,8 e deixa o terreo passar por baixo) */
+      const cRail = E.cA - Math.sign(E.cB - E.cA) * 0.47;   // borda interna do poco
+      if (E.horiz) addBox(E.L - 0.7, 0.9, 0.08, matRipa, (E.uMin + E.uMax - 0.7) / 2, 2.75, cRail, { skirt: false, cast: false });
+      else addBox(0.08, 0.9, E.L - 0.7, matRipa, cRail, 2.75, (E.uMin + E.uMax - 0.7) / 2, { skirt: false, cast: false });
+
+      /* PISO do andar (visual; collide false — quem manda e o groundHeightAt) e LAJE
+         com a ABERTURA da escada (faixa da lane B ate u0+2,4) */
+      addBoxSB(w - 0.32, 0.16, d - 0.32, matReboco, x, PISO - 0.16, z, { collide: false, skirt: false, cast: false });
+      if (E.horiz) addBoxSB(w + 0.3, 0.2, d + 0.3 - 1.8, matReboco, x, S_LAJE - 0.2, z - S.ladoEscada * 0.9, { collide: false, skirt: false });
+      else addBoxSB(w + 0.3 - 1.8, 0.2, d + 0.3, matReboco, x - S.ladoEscada * 0.9, S_LAJE - 0.2, z, { collide: false, skirt: false });
+      /* guarda na borda do poco (nivel da laje): quem anda na laje nao cai na escada;
+         o vao de u <= uMin+0,7 fica ABERTO — e por ali que a laje se entra do patamar */
+      /* comeca em uMin+1,2 (nao +0,7): com a platibanda a 0,38 do corpo de um lado e a
+         guarda do outro, a saida do patamar pra laje virava corredor de 2 cm (medido
+         no flood da ROTA3) — a folga de 0,5 m abre a passagem e o vao exposto e so o
+         degrau de cima do lance 2 (queda de 0,5 m). */
+      if (E.horiz) addBox(E.L - 1.2, 0.6, 0.08, matRipa, (E.uMin + 1.2 + E.uMax) / 2, S_LAJE - 0.05, cRail, { skirt: false, cast: false });
+      else addBox(0.08, 0.6, E.L - 1.2, matRipa, cRail, S_LAJE - 0.05, (E.uMin + 1.2 + E.uMax) / 2, { skirt: false, cast: false });
+      /* PLATIBANDA 0,5 m (gaps por face p/ as pranchas do lote seguinte: S.gaps) */
+      const gaps = S.gaps || {};
+      faixaSeg(false, x0 + 0.08, S_LAJE, 0.5, z0, z1, gaps.W || [], matRebocoSujo);
+      faixaSeg(false, x1 - 0.08, S_LAJE, 0.5, z0, z1, gaps.E || [], matRebocoSujo);
+      faixaSeg(true, z0 + 0.08, S_LAJE, 0.5, x0 + 0.16, x1 - 0.16, gaps.S || [], matRebocoSujo);
+      faixaSeg(true, z1 - 0.08, S_LAJE, 0.5, x0 + 0.16, x1 - 0.16, gaps.N || [], matRebocoSujo);
+      // ferro de espera nos cantos: obra que "vai continuar", como nas casas
+      for (const [ca, cb] of [[x0 + 0.35, z0 + 0.35], [x1 - 0.35, z1 - 0.35], [x1 - 0.35, z0 + 0.35]])
+        addBoxI(0.05, 0.55 + (i % 3) * 0.14, 0.05, matVerga, ca, S_LAJE + 0.1, cb, { cast: false });
+      /* margem 0,2 e nao 0,4: com 0,4 o solid do par do respawn alcancava a lane do
+         beco 1 (x -13,65) e matava 3 nos — o MC3 acusou 36 ilhados (medido 30/08) */
+      solids.push({ x0: x0 - 0.2, x1: x1 + 0.2, z0: z0 - 0.2, z1: z1 + 0.2 });
+    });
+  }
+
   /* ===================== GROUND HEIGHT ===================== */
+  /* SOBRADO multinivel: devolve null fora do lote; dentro, escolhe o piso mais alto
+     que o yRef alcanca (portao l - 1,2: apex do pulo 0,61 nao teleporta ninguem um
+     andar acima). Sem yRef devolve a camada de cima (laje) — convencao do BUG-80. */
+  const _ghSobrado = (S, x, z, yRef) => {
+    const x0 = S.x - S.w / 2, x1 = S.x + S.w / 2, z0 = S.z - S.d / 2, z1 = S.z + S.d / 2;
+    if (x < x0 || x > x1 || z < z0 || z > z1) return null;
+    const E = _escadaDe(S);
+    const u = E.horiz ? x : z, c = E.horiz ? z : x;
+    const pega = (lvls) => {
+      if (yRef === undefined) return lvls[0];
+      for (const l of lvls) if (yRef > l - 1.2) return l;
+      return lvls[lvls.length - 1];
+    };
+    if (Math.abs(c - E.cA) <= 0.45 || Math.abs(c - E.cB) <= 0.45) {
+      /* POCO ABERTO na laje: a camada de cima da escada e o proprio lance, continuo
+         da porta (h 0, lane cB) ate o patamar de saida (5,6, lane cA) — e por isso o
+         flood 2.5D das reguas (que expande pela camada de cima) sobe ate a laje. */
+      if (u >= E.uMax - 0.7) return pega([PISO, 0]);                                 // patamar da volta
+      if (Math.abs(c - E.cB) <= 0.45)
+        return pega([Math.min(PISO, PISO * (u - E.uMin) / (E.L - 0.7)), 0]);         // lance 1 (parede)
+      if (u <= E.uMin + 0.7) return pega([S_LAJE, 0]);                               // patamar de saida
+      return pega([Math.min(S_LAJE, PISO + PISO * ((E.uMax - 0.7) - u) / (E.L - 1.4)), 0]);   // lance 2
+    }
+    return pega([S_LAJE, PISO, 0]);
+  };
   function groundHeightAt(x, z, yRef) {
+    for (const S of SOBRADOS) { const hs = _ghSobrado(S, x, z, yRef); if (hs !== null) return hs; }
     const ax = Math.abs(x);
     /* ORDEM IMPORTA, e é a ordem física: o tablado da ponte está POR CIMA do vão, o
        assoreamento das pontas está por cima do fundo, a rampa está no lugar da parede. */
@@ -1276,6 +1469,9 @@ export function buildCorrego(scene, T) {
   }
   // passeio da beira do canal (entre a queda e a fileira A)
   for (const mx of [-5.9, 5.9]) linha(mx, -HALF_Z + 4, mx, HALF_Z - 4, 2.4, 0.3);
+  /* corredor entre o S1 e a beira: e por aqui que o topo da rampa leste da travessia
+     volta a margem — sem esta lane o fundo do canal do meio ilhava (MC3, 30/08) */
+  linha(7.5, -12.7, 7.5, -20.0, 1.6, 0.26);
   // BECO 1, entre as fileiras A e B
   for (const mx of [-13.65, 13.65]) linha(mx, -HALF_Z + 4, mx, HALF_Z - 4, 2.2, 0.26);
   // rua do spawn, entre a fileira B e a C
@@ -1396,6 +1592,7 @@ export function buildCorrego(scene, T) {
         if (Math.abs(x) <= CORREGO_X1 + 0.4) continue;         // canal, rampas e passeio da beira
         if (ehPonte(z) && Math.abs(x) <= CORREGO_W) continue;
         if (Math.abs(groundHeightAt(x, z)) > 0.06) continue;    // só a rua; nada de telhado ou rampa
+        if (SOBRADOS.some((S) => Math.abs(x - S.x) < S.w / 2 + 0.3 && Math.abs(z - S.z) < S.d / 2 + 0.3)) continue;
         const id = GRAMA_IDS[espalhados % GRAMA_IDS.length];
         if (!PB.add(id, { x, z, targetH: 0.16 + ((k * 3.7) % 1) * 0.13, ry: ((k * 11.3) % 1) * 6.283 })) break;
         espalhados++;
@@ -1538,6 +1735,7 @@ export function buildCorrego(scene, T) {
     skyLife,
     update(dt, time) { aguaCorrego.update(dt); skyLife.update(dt, time); },
     waypoints: { nodes, adj }, nearestWaypoint, findPath,
+    sobrados: SOBRADOS, janelas,
     gramaSpots: GRAMA_SPOTS, gramaServida,
     bounds: { minX: -HALF_X + 0.5, maxX: HALF_X - 0.5, minZ: -HALF_Z + 0.5, maxZ: HALF_Z - 0.5 },
   };
