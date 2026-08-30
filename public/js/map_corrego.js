@@ -1069,7 +1069,7 @@ export function buildCorrego(scene, T) {
     ['uno_mille', 17.8, -30.6, 0.55], ['fusca', 17.8, -10.6, -0.5], ['fiat_uno', 17.8, 20.6, 0.45],
     /* x=-20.6: a faixa -17.8 e pegada das casas da fileira B — os 3 nasciam FUNDIDOS
        (sobreposicao medida de 2,5-2,7 m; reporte do dono 30/08). */
-    ['fusca', -20.6, 27.2, 2.6], ['uno_mille', -20.6, 2.5, 3.6], ['kombi', -20.6, -16.5, 2.55],
+    ['fusca', -20.6, 27.2, 2.6], ['uno_mille', -20.6, 2.5, 3.6], ['kombi', -20.6, -17.6, 2.55],
   ]) {
     const h = id === 'kombi' ? 2.0 : 1.42;
     propEscala.push({ id, h });

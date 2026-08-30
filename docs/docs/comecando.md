@@ -45,7 +45,7 @@ esta página envelhecia no primeiro commit — ver
 | Armas com GLB | 26 | `git ls-files 'public/models/weapons/*.glb' \| wc -l` |
 | GLBs de personagem | 45 | `git ls-files 'public/models/characters/*.glb' \| wc -l` |
 | Props em GLB | 117 | `git ls-files 'public/models/props/*.glb' \| wc -l` |
-| Clipes de animação versionados | 575 | `git ls-files public/models/anims \| wc -l` |
+| Clipes de animação versionados | 573 | `git ls-files public/models/anims \| wc -l` |
 | Personagens jogáveis | 44, em 5 facções | array `CHARACTERS` de `characters.js` |
 | Mapas no registro | 13 | objeto `MAPS` de `maps.js` |
 | Arnêses visuais em HTML | 15 | `git ls-files 'public/*.html' \| wc -l` |
