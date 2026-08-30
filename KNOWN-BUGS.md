@@ -1924,6 +1924,74 @@ capivaras/ratos novos em GPU fraca.
 `sem-capivara-passeio`, `sem-mural-buzeira`) · botsim 180 s (stuck% córrego, referência
 quebrada no mesmo instrumento).
 
+### ~~BUG-85 · Camada vertical do córrego: sobrados com escada interna, janelas de sniper, pranchas e parkour~~ · ENTREGUE 30/08
+
+**Pedido (30/08/2026, palavras literais do dono):**
+
+> *"mais barracos e uma tipologia que desse pra subir nos barracos por escadas internas,
+> e que se interligasse com a rampa que cruza o mapa e ele pudesse ser jogado de cima
+> tambem"* · *"os barracos de frente pro corrego tivessem visao lateral tambem dos
+> andares. ia ajudar muito com snipers"* · *"na parte do respawn que tem um espacao,
+> idealmente teriam mais barracos pra ir se interligando via lajes no topo"* · *"os
+> jogadores podiam atirar pro outro lado ou corrego atraves de janelas abertas nas
+> laterais dos andares, ou da laje mesmo"* · *"tem uns barracos com umas arestas que
+> deviam ligar ao chao"* · *"tem umas estruturas de pau do lado da rampa elas podiam
+> ser interligadas e dariam pra pular"*
+
+**A · Antes de construir, um defeito já estava na base:** os 3 carros da margem oeste
+(movidos a x=−20,6 em 30/08 para não fundir com a fileira B) pousavam o colisor na lane
+da rua (x=−21) e o giro de ~34° projetava **1,83 m** de meia-largura: **CTF2 1 rota**
+(E→C/B→C/B→P) contra o JSON commitado dizendo 2. A/B medido: revertendo só os carros,
+CTF2 volta a 2. Conserto: x=−19,6 e **estacionado paralelo** (ry = π±0,1, projeção
+~1,05 m) — sem fusão e com 0,35 m até a lane.
+
+**B · O que foi construído (`public/js/map_corrego.js`, bloco SOBRADOS):** 4 sobrados
+de 2 pavimentos (PISO 2,8; laje **5,6 = cota do tablado da travessia**, de propósito):
+S1 (10.15,−15.1) e S2 (−9.7,−18.3, no footprint da casa de adensamento que saiu — em
+posição nova tapava a única abertura da fileira A oeste e a CTF2 caía a 1, medido) de
+frente pro córrego; S3 (−16.28,−20.5) e S4 (−16.28,−24.6) no espação do respawn oeste.
+Escada interna em U com **poço aberto na laje** — a camada-de-cima sobe contínua da
+calçada à laje (degrau amostrado 0,17–0,26 m), que é o que o flood 2.5D das réguas
+atravessa (o desenho fechado com laje sobre a escada dava 4 lajes-ilha na ROTA3,
+medido). Janela = ausência de parede na faixa 1,0–1,9 do andar (peitoril 1,0 — atira-se
+por cima; 16 janelas: 4 de canal, 5 laterais, mais térreo na frente). Pranchas: S1→
+tablado, S2→tablado (6,4 m com pilares), S3↔S4; parkour: 3 tampos de pau na cota da
+rampa oeste (0,52/1,89/3,06 — pulo medido no game.js: 2,60 m plano, apex 0,61; vãos
+≤ ×0,85); as 24 mão-francesas das palafitas viraram escoras com pé no leito (a
+`addPlacaSB` de 2,4 m pendia no ar), e a escora dos tampos nasceu ESPELHADA
+(atan2 com dx negativo) — a régua VIGA pegou antes do commit.
+
+**C · Bots: a camada vertical era armadilha (stuck 4,0 % → 20–23 %) e virou rota.**
+O bot subia por DERIVA (a física multinível carrega quem encosta na escada/prancha) e
+morria preso na platibanda: amostras a y=5,60 na laje do S2 e a y=2,80 no andar
+(sementes 8675309: 23,3 %; 1618: 15 %). Dois consertos medidos: **soleira de 0,45 m**
+na entrada das pranchas e **waypoints verticais** (porta→lances→patamar→saída→laje, 9
+nós por sobrado; solids removidos — as paredes reais é que bloqueiam nó de rua).
+23,3 → 2,2 na semente patológica; sequência oficial **6,24 %** (teto 7).
+
+| | antes | depois |
+|---|---|---|
+| CTF2 (piorRotas) | **1** (regressão dos carros) | **2** |
+| MC3 córrego | conexo (567 nós) | conexo (**606 nós**, 9/sobrado na vertical) |
+| MAP2B pior área | 49,9 m² | **40,6 m²** [≥ 40] |
+| botsim stuck% (180 s, 9 sementes) | 4,03 % | **6,24 %** [teto 7] |
+| lajes altas alcançáveis (ROTA3) | n/a | **0 ilhas** |
+
+**Réguas novas (`eval:corrego-rotas`): ROTA7/8/9 + VIGA**, 14 mutantes no total —
+`escada-tampada`→ROTA7, `laje-ilhada`→ROTA8, `janela-cega`→ROTA9, `viga-no-ar`→VIGA,
+cada um acendendo **só** a sua cláusula (o `escada-tampada` tampa o S4, cuja laje
+continua acessível pela prancha S3↔S4 — é o que o isola da ROTA3). VGAP_MAX (0,35)
+compartilhado entre ROTA6 e VIGA. Estado bom: escadas degrau máx 0,17/topo 5,60;
+pranchas degrau 0,00/pontas 5,60; 27 vigas com pé a 0,00.
+
+**Custo declarado:** stuck 4,03 → 6,24 % (a camada vertical adiciona becos 3D reais;
+dentro do teto); entrada de prancha exige um PULO por causa da soleira anti-bot; a
+lane do corredor S1↔beira (x=7,5) tem 0,17 m de folga por lado — dois bots que se
+cruzam ali raspam (8–15 amostras/rodada); armadilha residual pré-existente na barraca
+do camelô (12,4,−2: 27 amostras numa semente). **Não verificado:** browser real
+jogando (figuras do mapview em headless foram olhadas), e o comportamento de COMBATE
+dos bots atirando das janelas (só navegação foi medida).
+
 ### ~~BUG-83 · "A ARENA NÃO ABRIU": material no slot de textura~~ · RESOLVIDO 29/08
 
 **Reportado (29/08/2026):** *"preview ta dando erro"* — tela `A ARENA NÃO ABRIU`,

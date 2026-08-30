@@ -1344,9 +1344,8 @@ export function buildCorrego(scene, T) {
       // ferro de espera nos cantos: obra que "vai continuar", como nas casas
       for (const [ca, cb] of [[x0 + 0.35, z0 + 0.35], [x1 - 0.35, z1 - 0.35], [x1 - 0.35, z0 + 0.35]])
         addBoxI(0.05, 0.55 + (i % 3) * 0.14, 0.05, matVerga, ca, S_LAJE + 0.1, cb, { cast: false });
-      /* margem 0,2 e nao 0,4: com 0,4 o solid do par do respawn alcancava a lane do
-         beco 1 (x -13,65) e matava 3 nos — o MC3 acusou 36 ilhados (medido 30/08) */
-      solids.push({ x0: x0 - 0.2, x1: x1 + 0.2, z0: z0 - 0.2, z1: z1 + 0.2 });
+      /* SEM solids: as paredes reais ja bloqueiam nos de rua, e o miolo PRECISA de
+         nos — a camada de cima do interior e a laje, e o bot navega por ela (BUG-85) */
     });
   }
 
@@ -1374,6 +1373,15 @@ export function buildCorrego(scene, T) {
       for (const sgn of [-1, 1])
         addBoxSB(0.07, 0.45, L, matRipa, cx + sgn * pr.meiaL * Math.cos(ry), pr.y + 0.1, cz - sgn * pr.meiaL * Math.sin(ry),
           { collide: false, skirt: false, cast: false, ry });
+    }
+    /* SOLEIRA ANTI-BOT a 2,2 m da ponta da travessia: tabua de 0,45 m que o jogador
+       PULA (apex 0,61) e o bot nao — sem ela o bot derivava da travessia pra prancha
+       e morria preso na platibanda da laje (stuck 22%, medido; BUG-85). */
+    for (const pr of [PRANCHAS[0], PRANCHAS[1]]) {
+      const L = Math.hypot(pr.bx - pr.ax, pr.bz - pr.az), t = 2.2 / L;
+      const px = pr.bx + (pr.ax - pr.bx) * t, pz = pr.bz + (pr.az - pr.bz) * t;
+      addBox(pr.meiaL * 2 + 0.1, 0.45, 0.12, matRipa, px, pr.y - 0.05, pz,
+        { ry: Math.atan2(pr.bx - pr.ax, pr.bz - pr.az), skirt: false, cast: false });
     }
     // pilares da prancha longa do S2 — sem eles ela le como tapete voador
     for (const [px, pz] of [[-6.9, -15.0], [-5.6, -13.0]])
@@ -1522,6 +1530,22 @@ export function buildCorrego(scene, T) {
   /* corredor entre o S1 e a beira: e por aqui que o topo da rampa leste da travessia
      volta a margem — sem esta lane o fundo do canal do meio ilhava (MC3, 30/08) */
   linha(7.5, -12.7, 7.5, -20.0, 1.6, 0.26);
+  /* ── ROTA VERTICAL DOS BOTS: nos na porta, na escada, no patamar e na laje de cada
+     sobrado. Sem eles o bot que subia por DERIVA morria preso no andar/laje — stuck
+     20-23% nas sementes 8675309/1618, medido; com eles a laje e rota, nao armadilha. */
+  for (const S of SOBRADOS) {
+    const E = _escadaDe(S);
+    const PT = (u, c) => { const x = E.horiz ? u : c, z = E.horiz ? c : u; nodes.push({ x, z }); };
+    PT(E.uMin - 0.9, E.cB);   // porta (rua) → lance 1 → patamar → lance 2 → saida → laje
+    for (const u of [E.uMin + 0.5, E.uMin + 1.7, E.uMax - 1.1]) PT(u, E.cB);
+    PT(E.uMax - 0.35, (E.cA + E.cB) / 2);
+    for (const u of [E.uMax - 1.3, E.uMin + 1.6]) PT(u, E.cA);
+    PT(E.uMin + 0.35, E.cA);
+    /* no da laje no meio-vao parede↔guarda do poco: com offset fixo de 1,3 ele caia
+       a 9 cm da parede no sobrado de d=3,0 e nascia sem aresta (ilhado, medido) */
+    const cParede = (S.ladoEscada > 0 ? (E.horiz ? S.z - S.d / 2 : S.x - S.w / 2) : (E.horiz ? S.z + S.d / 2 : S.x + S.w / 2)) + S.ladoEscada * 0.16;
+    PT(E.uMin + 0.9, (cParede + E.cA - S.ladoEscada * 0.45) / 2);
+  }
   // BECO 1, entre as fileiras A e B
   for (const mx of [-13.65, 13.65]) linha(mx, -HALF_Z + 4, mx, HALF_Z - 4, 2.2, 0.26);
   // rua do spawn, entre a fileira B e a C

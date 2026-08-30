@@ -39,7 +39,7 @@ esta página envelhecia no primeiro commit — ver
 
 | O que | Quanto | Onde confere |
 |---|---:|---|
-| Código do jogo | 35.885 linhas em 51 arquivos | `git ls-files public/js/*.js \| xargs wc -l` |
+| Código do jogo | 35.912 linhas em 51 arquivos | `git ls-files public/js/*.js \| xargs wc -l` |
 | `game.js` | **7.078** linhas | `wc -l public/js/game.js` |
 | `main.js` | 2.703 linhas | `wc -l public/js/main.js` |
 | Armas com GLB | 26 | `git ls-files 'public/models/weapons/*.glb' \| wc -l` |
@@ -226,7 +226,7 @@ Os mapas registrados hoje, e em que modo cada um abre:
 | `loja_h` | Loja H (Estacionamento) | **captura** | `map_havan.js` | 1.973 |
 | `ferro_velho` | Ferro Velho do Zé | **captura** | `map_ferrovelho.js` | 1.897 |
 | `quebrada` | Quebrada (Rua do Baile) | **captura** | `map_quebrada.js` | 1.608 |
-| `corrego` | Córrego (Favela de SP) | **captura** | `map_corrego.js` | 1.789 |
+| `corrego` | Córrego (Favela de SP) | **captura** | `map_corrego.js` | 1.816 |
 | `posto_treta` | Posto da Treta | **captura** | `map_posto.js` | 489 |
 | `upa_24h` | UPA 24h da Treta | **captura** | `map_upa.js` | 288 |
 | `obras_prefeitura` | Obras da Prefeitura | **captura** | `map_obras.js` | 240 |
