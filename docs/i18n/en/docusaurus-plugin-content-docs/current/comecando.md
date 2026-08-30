@@ -41,7 +41,7 @@ this page was aging at the very first commit — see
 
 | What | How much | Where to check |
 |---|---:|---|
-| Game code | 35,838 lines in 51 files | `git ls-files public/js/*.js \| xargs wc -l` |
+| Game code | 35,885 lines in 51 files | `git ls-files public/js/*.js \| xargs wc -l` |
 | `game.js` | **7,078** lines | `wc -l public/js/game.js` |
 | `main.js` | 2,703 lines | `wc -l public/js/main.js` |
 | Weapons with GLB | 26 | `git ls-files 'public/models/weapons/*.glb' \| wc -l` |
@@ -228,7 +228,7 @@ The maps registered today, and which mode each one opens in:
 | `loja_h` | Loja H (Estacionamento) | **capture** | `map_havan.js` | 1,973 |
 | `ferro_velho` | Ferro Velho do Zé | **capture** | `map_ferrovelho.js` | 1,897 |
 | `quebrada` | Quebrada (Rua do Baile) | **capture** | `map_quebrada.js` | 1,608 |
-| `corrego` | Córrego (Favela de SP) | **capture** | `map_corrego.js` | 1,742 |
+| `corrego` | Córrego (Favela de SP) | **capture** | `map_corrego.js` | 1,789 |
 | `posto_treta` | Posto da Treta | **capture** | `map_posto.js` | 489 |
 | `upa_24h` | UPA 24h da Treta | **capture** | `map_upa.js` | 288 |
 | `obras_prefeitura` | Obras da Prefeitura | **capture** | `map_obras.js` | 240 |
