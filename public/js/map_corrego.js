@@ -29,7 +29,7 @@ const CANAL_X0 = -CANAL_ABERTURA / 2, CANAL_X1 = CANAL_ABERTURA / 2;
 /* −1,75 e não −1,85: a ponte fica a y = 0,15, e −1,85 dava queda de exatamente 2,00 m
    (QUEDA_ANDAR do MAP6, medido). O teto mede da superfície MAIS ALTA que dá no vão. */
 const CANAL_FUNDO = -1.75;
-const CANAL_AGUA = CANAL_FUNDO + 0.14;          // lâmina rasa: anda-se DENTRO dela
+const CANAL_AGUA = CANAL_FUNDO + 0.30;          // lamina funda ate o joelho (pedido 30/08); anda-se DENTRO dela
 /* Rampas de contenção, paralelas ao canal (é assim que córrego canalizado de verdade dá
    acesso — ver foto_001: a parede é vertical, quem desce desce pela ponta). Cada rampa
    ocupa a faixa da parede (|x| ∈ [3, 5]) e desce ao longo de z: 1,85 m em 6 m = 17°,
@@ -477,13 +477,24 @@ export function buildCorrego(scene, T) {
     let i = 0;
     /* passo 3,0 e nao 5,2, e DUAS fileiras: o pedido era "ter mais gramineas". A de fora
        (5,5) e a margem; a de dentro (3,9) encosta na quina do canal. */
-    for (let z = -36; z <= 36; z += 3.0) {
+    /* passo 2,0 e TRES fileiras + taboa na borda de dentro: pedido de 30/08 — "mais
+       gramineas especialmente em toda lateral do corrego, e no corrego em si". */
+    for (let z = -36; z <= 36; z += 2.0) {
       if ([-22, 0, 22].some((bz) => Math.abs(z - bz) < 2.4)) continue;   // vão das pontes livre
       GRAMA_SPOTS.push({ x: lado * (5.5 + (i % 3) * 0.35), z, ry: (i * 2.399) % 6.283 });
       if (i % 2 === 0) GRAMA_SPOTS.push({ x: lado * (3.9 + (i % 2) * 0.4), z: z + 1.4, ry: (i * 1.777) % 6.283 });
+      if (i % 3 === 1) GRAMA_SPOTS.push({ x: lado * (6.6 + (i % 2) * 0.5), z: z + 0.8, ry: (i * 3.117) % 6.283 });
       i++;
     }
   }
+  /* DENTRO do canal: taboa/taioba na quina da parede, pés na lâmina — mata sem tapar
+     a lane dos bots (x = ±2,55, fora da faixa ±1,4+0,3). */
+  const AGUA_SPOTS = [];
+  for (const lado of [-1, 1])
+    for (let z = -30; z <= 30; z += 4.4) {
+      if ([-22, -11, 0, 22].some((bz) => Math.abs(z - bz) < 2.2)) continue;   // pontes e travessia
+      AGUA_SPOTS.push({ x: lado * 2.55, z: z + (lado > 0 ? 1.3 : 0), ry: (z * 1.7) % 6.283 });
+    }
   for (const [sx, sz] of [[-HALF_X + 1.2, -HALF_Z + 1.2], [HALF_X - 1.2, -HALF_Z + 1.2], [-HALF_X + 1.2, HALF_Z - 1.2], [HALF_X - 1.2, HALF_Z - 1.2]])
     GRAMA_SPOTS.push({ x: sx, z: sz, ry: 0.7 });
   const gramaServida = [];
@@ -501,6 +512,10 @@ export function buildCorrego(scene, T) {
   GRAMA_SPOTS.forEach((spot, i) => {
     // alterna os dois tufos: um só repetido 26 vezes lê como carimbo
     plantar(GRAMA_IDS[i % GRAMA_IDS.length], { x: spot.x, z: spot.z, ry: spot.ry, targetH: 0.38 + (i % 4) * 0.07 });
+  });
+  const AGUA_IDS = ['planta_corrego_taboa', 'planta_corrego_taioba'];
+  AGUA_SPOTS.forEach((spot, i) => {
+    plantar(AGUA_IDS[i % AGUA_IDS.length], { x: spot.x, z: spot.z, y: CANAL_FUNDO, ry: spot.ry, targetH: 0.85 + (i % 3) * 0.15 });
   });
 
   /* ===================== JACARÉ (decoração no córrego) ===================== */
@@ -1052,7 +1067,9 @@ export function buildCorrego(scene, T) {
      E ficam a ≥ 5,5 m do ponto de spawn, fora do disco que o MAP2B mede. */
   for (const [id, x, z, ry] of [
     ['uno_mille', 17.8, -30.6, 0.55], ['fusca', 17.8, -10.6, -0.5], ['fiat_uno', 17.8, 20.6, 0.45],
-    ['fusca', -17.8, 29.4, 2.6], ['uno_mille', -17.8, 0.6, 3.6], ['kombi', -17.8, -19.4, 2.55],
+    /* x=-20.6: a faixa -17.8 e pegada das casas da fileira B — os 3 nasciam FUNDIDOS
+       (sobreposicao medida de 2,5-2,7 m; reporte do dono 30/08). */
+    ['fusca', -20.6, 27.2, 2.6], ['uno_mille', -20.6, 2.5, 3.6], ['kombi', -20.6, -16.5, 2.55],
   ]) {
     const h = id === 'kombi' ? 2.0 : 1.42;
     propEscala.push({ id, h });

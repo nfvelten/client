@@ -538,7 +538,7 @@ export function createFavelaAmbience(root, options) {
 /* FAUNA ESTÁTICA POSICIONÁVEL (BUG-57, região append-only): GLB sem rig, escala por
    comprimento (plans/21-FAUNA-CORREGO.md); yawFix medido em tools/eval/asset-evidence/fauna/. */
 const STATIC_FAUNA_META = {
-  jacare: { len: 1.8, yawFix: Math.PI / 2 },
+  jacare: { len: 2.6, yawFix: Math.PI / 2 },   // 1,8 lia como filhote na agua funda (dono 30/08)
   capivara: { len: 1.0, yawFix: 0 },
 };
 

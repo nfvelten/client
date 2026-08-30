@@ -106,7 +106,7 @@ function registrarVegetacao(remover = false) {
 
 function registrarStubs() {
   for (const [id, file, alvoLen, yawFix] of [
-    ['jacare', 'public/models/ambient/jacare_corrego.glb', 1.8, Math.PI / 2],   // focinho -X no GLB → +Z após o fix
+    ['jacare', 'public/models/ambient/jacare_corrego.glb', 2.6, Math.PI / 2],   // focinho -X no GLB → +Z após o fix; 2,6 m (dono 30/08: 1,8 era pequeno)
     ['capivara', 'public/models/ambient/capivara_corrego.glb', 1.0, 0],          // focinho +Z nativo
   ]) {
     const b = glbBounds(file);
@@ -407,7 +407,7 @@ checks.push(
     const b = boxDe(jacareGlb);
     const len = lenSemYaw(jacareGlb);
     const cx = (b.min.x + b.max.x) / 2, cz = (b.min.z + b.max.z) / 2;
-    return len >= 1.62 && len <= 1.98 && Math.abs(cx - 0.8) < 2.5 && Math.abs(cz + 7) < 2.5;
+    return len >= 2.34 && len <= 2.86 && Math.abs(cx - 0.8) < 2.5 && Math.abs(cz + 7) < 2.5;   // 2,6 m ±10% — dono 30/08: 1,8 lia como filhote
   })()],
   ['jacaré meio submerso na lâmina (dorso de fora, patas na água)', !!jacareGlb && submerso(jacareGlb)],
   ['capivara GLB na margem alagada com escala da ficha', !!capivaraGlb && (() => {
