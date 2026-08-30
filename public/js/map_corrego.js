@@ -1067,9 +1067,13 @@ export function buildCorrego(scene, T) {
      E ficam a ≥ 5,5 m do ponto de spawn, fora do disco que o MAP2B mede. */
   for (const [id, x, z, ry] of [
     ['uno_mille', 17.8, -30.6, 0.55], ['fusca', 17.8, -10.6, -0.5], ['fiat_uno', 17.8, 20.6, 0.45],
-    /* x=-20.6: a faixa -17.8 e pegada das casas da fileira B — os 3 nasciam FUNDIDOS
-       (sobreposicao medida de 2,5-2,7 m; reporte do dono 30/08). */
-    ['fusca', -20.6, 27.2, 2.6], ['uno_mille', -20.6, 2.5, 3.6], ['kombi', -20.6, -17.6, 2.55],
+    /* x=-19.75 e nao -20.6 nem -17.8: -17.8 fundia com as casas da fileira B
+       (sobreposicao 2,5-2,7 m, reporte 30/08) e -20.6 punha o colisor EM CIMA da lane
+       da rua (x=-21, inf 0,3) — CTF2 caiu de 2 para 1 rota (medido 30/08, A/B). Em
+       -19.6 o carro estaciona PARALELO (ry = pi ± 0,1: girado a 34 graus a meia-largura
+       projetada era 1,83 m e cortava a lane do mesmo jeito — medido) e deixa 0,35 m ate
+       a lane. z fora dos becos transversais (-17.3 e 28 ± 1.3 + meia-kombi). */
+    ['fusca', -19.6, 25.6, 3.04], ['uno_mille', -19.6, 2.5, 3.24], ['kombi', -19.6, -14.4, 3.05],
   ]) {
     const h = id === 'kombi' ? 2.0 : 1.42;
     propEscala.push({ id, h });
